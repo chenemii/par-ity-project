@@ -1,0 +1,12 @@
+opencv-python==4.8.1.78
+yt-dlp==2025.2.19
+ultralytics==8.1.0
+mediapipe==0.10.13
+numpy==1.26.4
+matplotlib==3.8.0
+torch==2.2.0
+torchvision==0.17.0
+openai==1.6.0
+python-dotenv==1.0.0
+tqdm==4.66.1
+streamlit==1.30.0 
