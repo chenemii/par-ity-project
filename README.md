@@ -1,92 +1,83 @@
 # Golf Swing Analysis
 
-A Python application that analyzes golf swings from YouTube videos using computer vision and AI.
+A tool for analyzing golf swings using computer vision and AI.
 
 ## Features
 
-- YouTube video retrieval and processing using yt-dlp
-- Golfer, club, and ball detection using YOLOv8
-- Pose estimation for swing analysis
-- Swing phase segmentation (setup, backswing, downswing, impact, follow-through)
-- Trajectory and speed analysis
-- AI-powered swing evaluation and coaching tips
-- Visual feedback with annotations
-- Streamlit web interface
+- Upload or provide YouTube links to golf swing videos
+- Automated swing analysis using computer vision
+- Pose estimation and tracking
+- Swing phase segmentation
+- Club and ball trajectory analysis
+- LLM-powered swing analysis and coaching tips
+- Annotated video generation
+- Side-by-side comparison with professional golfer
+- Improvement recommendations from AI analysis
 
-## Installation
+## Setup
 
-1. Clone this repository
-2. Run the setup script to create necessary directories:
-   ```
-   chmod +x setup_directories.sh
-   ./setup_directories.sh
-   ```
-3. Create a virtual environment:
-   ```
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-4. Install dependencies:
+1. Clone the repository
+2. Install the required packages:
    ```
    pip install -r requirements.txt
    ```
-5. Edit the `.env` file with your OpenAI API key:
+3. Set up the necessary directories:
    ```
-   OPENAI_API_KEY=your_api_key_here
+   ./setup_directories.sh
+   ```
+4. Add a reference professional golfer video:
+   - Save a video of a professional golfer's swing as `pro_golfer.mp4` in the `downloads` directory
+   - This will be used for the side-by-side comparison feature
+
+5. Set your OpenAI API key as an environment variable:
+   ```
+   export OPENAI_API_KEY="your-api-key"
    ```
 
-## Usage
+## Running the Application
 
-### Command Line Interface
-
-Run the main application:
-
-```
-python app/main.py
-```
-
-Follow the prompts to input a YouTube URL containing a golf swing recording.
-
-### Streamlit Web Interface
-
-Run the Streamlit web app using the provided shell script:
-
+Run the Streamlit app:
 ```
 ./run_streamlit.sh
 ```
 
-Or manually with:
-
+Or manually:
 ```
-source .venv/bin/activate
- 
+streamlit run app/streamlit_app.py
 ```
 
-The web interface provides:
-- Options to upload a video or use a YouTube URL
-- Control over frame skip rate for YOLO detection
-- Toggle for enabling/disabling GPT analysis
-- Interactive display of analysis results
-- Option to create and view annotated videos
+## Usage
 
-## File Organization
+1. Upload a golf swing video or provide a YouTube URL
+2. Click "Analyze Swing" to process the video
+3. View the swing phase breakdown and metrics
+4. Generate an annotated video showing the analysis
+5. Compare your swing side-by-side with a professional golfer
+6. Get AI-powered improvement recommendations
 
-- **downloads/**: Contains both downloaded YouTube videos and annotated videos
-- All videos (both original and annotated) are stored in the same directory for easy access
+## Technical Details
 
-## Troubleshooting
+The application uses:
+- YOLOv8 for object detection
+- MediaPipe for pose estimation
+- OpenCV for video processing
+- OpenAI GPT-4 for swing analysis
+- Streamlit for the web interface
 
-If you encounter issues with the "Create Annotated Video" button:
-1. Make sure you've run the setup script to create the downloads directory
-2. Check that the `downloads` directory has write permissions
-3. Try restarting the Streamlit app
+## Directory Structure
 
-## Requirements
+- `app/`: Main application code
+  - `models/`: Analysis models
+  - `utils/`: Utility functions
+  - `components/`: UI components
+  - `streamlit_app.py`: Main Streamlit application
+- `downloads/`: Downloaded and processed videos
+- `requirements.txt`: Required Python packages
+- `setup_directories.sh`: Script to set up required directories
+- `run_streamlit.sh`: Script to run the Streamlit app
 
-- Python 3.8+
-- OpenCV
-- YOLOv8
-- MediaPipe
-- yt-dlp
-- OpenAI API key
-- Streamlit 
+## Notes
+
+- For best results, use videos where the golfer is clearly visible
+- Side view videos work best for analysis
+- Processing time depends on video length and resolution 

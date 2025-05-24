@@ -50,14 +50,34 @@ def process_uploaded_video(uploaded_file):
     return file_path
 
 
-def display_video(video_path):
+def display_video(video_path, width=300):
     """Display a video with download option"""
     # Read video bytes
     with open(video_path, "rb") as file:
         video_bytes = file.read()
 
+    # Create a container with custom width
+    video_container = st.container()
+    # Apply CSS to control the width and ensure it's centered
+    video_container.markdown(
+        f"""
+        <style>
+        .element-container:has(video) {{
+            max-width: {width}px;
+            margin: 0 auto;
+        }}
+        video {{
+            width: 100% !important;
+            height: auto !important;
+        }}
+        </style>
+        """, 
+        unsafe_allow_html=True
+    )
+    
     # Display video using st.video with bytes
-    st.video(video_bytes)
+    with video_container:
+        st.video(video_bytes)
 
     # Show download button
     st.download_button(label="Download Video",
@@ -89,8 +109,26 @@ def main():
     # Sidebar for configuration
     st.sidebar.title("Configuration")
 
-    # Option to enable/disable GPT analysis
-    enable_gpt = st.sidebar.checkbox("Enable GPT Analysis", value=True)
+    # Option to enable/disable GPT analysis with better explanation
+    st.sidebar.markdown("### GPT Analysis Settings")
+    enable_gpt = st.sidebar.checkbox(
+        "Enable GPT Analysis", 
+        value=False,  # Disabled by default
+        help="When enabled, uses OpenAI's API for personalized analysis. Requires API key."
+    )
+    
+    if enable_gpt:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            st.sidebar.warning(
+                "⚠️ OpenAI API key not found. Set the OPENAI_API_KEY environment variable."
+            )
+        else:
+            st.sidebar.success("✅ OpenAI API key configured")
+    else:
+        st.sidebar.info(
+            "Using sample analysis mode (no API key required)"
+        )
 
     # Frame skip rate for YOLO
     sample_rate = st.sidebar.slider(
@@ -119,7 +157,7 @@ def main():
                     try:
                         video_path = download_youtube_video(youtube_url)
                         st.success("Video downloaded successfully!")
-                        display_video(video_path)
+                        display_video(video_path, width=400)
                     except Exception as e:
                         st.error(f"Error downloading video: {str(e)}")
                         st.session_state.video_analyzed = False
@@ -139,7 +177,7 @@ def main():
                 try:
                     video_path = process_uploaded_video(uploaded_file)
                     st.success("Video uploaded successfully!")
-                    display_video(video_path)
+                    display_video(video_path, width=400)
                 except Exception as e:
                     st.error(f"Error processing video: {str(e)}")
                     st.session_state.video_analyzed = False
@@ -194,29 +232,14 @@ def main():
                             f"{trajectory_data[impact_frame]['club_speed']:.1f} mph"
                         )
 
-            # Step 5: Generate swing analysis using LLM (if enabled)
             # Prepare data for LLM regardless of whether GPT is enabled
             analysis_data = prepare_data_for_llm(pose_data, swing_phases,
                                                  trajectory_data)
             prompt = create_llm_prompt(analysis_data)
 
-            # Display the GPT prompt
-            with st.expander("View GPT Prompt"):
+            # Display the GPT prompt in an expander (hidden by default)
+            with st.expander("View GPT Prompt", expanded=False):
                 st.code(prompt, language="text")
-
-            if enable_gpt:
-                with st.spinner(
-                        "Generating swing analysis and coaching tips..."):
-                    analysis = generate_swing_analysis(pose_data, swing_phases,
-                                                       trajectory_data)
-
-                    # Display analysis
-                    st.subheader("Swing Analysis")
-                    st.write(analysis)
-            else:
-                st.info(
-                    "GPT Analysis is disabled. Enable it in the sidebar to generate coaching tips."
-                )
 
             # Store analysis data in session state
             st.session_state.video_analyzed = True
@@ -229,19 +252,34 @@ def main():
                 'trajectory_data': trajectory_data,
                 'sample_rate': sample_rate
             }
+            
+            # Present the two options after analysis
+            st.subheader("What would you like to do next?")
+            options_col1, options_col2 = st.columns(2)
+            
+            with options_col1:
+                st.info("**Option 1: Generate Annotated Video**\n\nCreate a video with visual feedback showing your swing phases, body positioning, and key metrics.")
+            
+            with options_col2:
+                st.info("**Option 2: Generate Improvement Recommendations**\n\nGet AI-powered analysis of your swing with specific tips for improvement.")
 
         except Exception as e:
             st.error(f"Error during analysis: {str(e)}")
             st.session_state.video_analyzed = False
 
-    # Create annotated video button (only show if analysis is complete)
+    # Show action buttons and their results (only if analysis is complete)
     if st.session_state.video_analyzed:
-        st.header("Create Annotated Video")
-        st.write(
-            "Create a video with annotations showing the analysis results")
-
-        # Create a separate section for the annotated video
-        if st.button("Generate Annotated Video", key="create_annotated"):
+        # Create columns for the two action buttons
+        button_col1, button_col2 = st.columns(2)
+        
+        with button_col1:
+            annotated_video_clicked = st.button("Generate Annotated Video", key="create_annotated", use_container_width=True)
+        
+        with button_col2:
+            improvements_clicked = st.button("Generate Improvements", key="gpt_recommendations", use_container_width=True)
+        
+        # Handle annotated video creation
+        if annotated_video_clicked:
             try:
                 with st.spinner("Creating annotated video..."):
                     # Create downloads directory if it doesn't exist
@@ -265,16 +303,67 @@ def main():
                         raise FileNotFoundError(
                             f"Annotated video file not found at {output_path}")
 
-                    st.success("Annotated video created successfully!")
-
-                    # Display the video with download option
-                    display_video(output_path)
+                    # Store the annotated video path in session state
+                    st.session_state.annotated_video_path = output_path
+                
+                # Display success message and video after spinner completes
+                st.success("Annotated video created successfully!")
+                display_video(output_path, width=400)
+                
+                # Show download button
+                with open(output_path, "rb") as file:
+                    video_bytes = file.read()
+                    st.download_button(
+                        label="Download Annotated Video",
+                        data=video_bytes,
+                        file_name=os.path.basename(output_path),
+                        mime="video/mp4"
+                    )
 
             except Exception as e:
                 st.error(f"Error creating annotated video: {str(e)}")
                 st.error(
                     "Please check if the downloads directory exists and is writable"
                 )
+        
+        # Handle improvement recommendations generation
+        if improvements_clicked:
+            with st.spinner("Analyzing your swing and generating recommendations..."):
+                # Get data from session state
+                data = st.session_state.analysis_data
+                pose_data = data['pose_data']
+                swing_phases = data['swing_phases']
+                trajectory_data = data['trajectory_data']
+                
+                # Generate detailed analysis with recommendations
+                analysis = generate_swing_analysis(pose_data, swing_phases, trajectory_data)
+                
+                # Display the analysis
+                st.subheader("Swing Analysis and Recommendations")
+                
+                # Check if we're using the sample analysis (no API key)
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key and not enable_gpt:
+                    st.info("ℹ️ **Using sample analysis mode**. The recommendations below are general examples and not personalized to your specific swing.")
+                
+                st.markdown(analysis)
+                
+                # Add some example drills based on the analysis
+                if "Error:" not in analysis:  # Only show drills if analysis was successful
+                    st.subheader("Recommended Drills")
+                    drill1, drill2 = st.columns(2)
+                    
+                    with drill1:
+                        st.markdown("**Posture Drill**")
+                        st.markdown("- Stand with your back against a wall")
+                        st.markdown("- Take your golf stance while maintaining contact")
+                        st.markdown("- Practice maintaining this posture during your swing")
+                    
+                    with drill2:
+                        st.markdown("**Tempo Drill**")
+                        st.markdown("- Count '1-2-3' for your backswing")
+                        st.markdown("- Count '1' for your downswing")
+                        st.markdown("- Practice maintaining a 3:1 tempo ratio")
 
 
 if __name__ == "__main__":

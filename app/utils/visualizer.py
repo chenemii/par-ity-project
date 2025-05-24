@@ -69,10 +69,49 @@ def create_annotated_video(video_path,
 
         height, width = frames[0].shape[:2]
         fps = 30  # Default fps
-
-        # Create video writer
+        
+        # Check the original video orientation using OpenCV
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise IOError(f"Could not open original video: {video_path}")
+            
+        # Read metadata from the original video if available
+        rotation = 0
+        # Try to get rotation metadata from the video
+        if hasattr(cap, 'get') and callable(getattr(cap, 'get')):
+            try:
+                rotation_value = cap.get(cv2.CAP_PROP_ORIENTATION_META)
+                if rotation_value == 0:  # No rotation
+                    rotation = 0
+                elif rotation_value == 90:  # 90 degrees clockwise
+                    rotation = 270  # We'll rotate counterclockwise, so 270
+                elif rotation_value == 180:  # 180 degrees
+                    rotation = 180
+                elif rotation_value == 270:  # 270 degrees clockwise
+                    rotation = 90  # We'll rotate counterclockwise, so 90
+            except:
+                # If metadata reading fails, use the dimensions-based detection
+                rotation = 0
+        
+        # If no rotation metadata or reading failed, use dimensions-based detection
+        if rotation == 0:
+            # Check if video is in portrait mode (height > width)
+            if height > width * 1.2:  # If height is significantly greater than width
+                rotation = 90  # Rotate 90 degrees counterclockwise
+        
+        # Close the video capture
+        cap.release()
+        
+        # Determine output dimensions based on rotation
+        output_width = width
+        output_height = height
+        if rotation == 90 or rotation == 270:
+            # Swap dimensions for 90/270 degree rotations
+            output_width, output_height = height, width
+            
+        # Create video writer with proper dimensions
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        out = cv2.VideoWriter(output_path, fourcc, fps, (output_width, output_height))
 
         if not out.isOpened():
             raise IOError(
@@ -84,24 +123,117 @@ def create_annotated_video(video_path,
                                        desc="Creating annotated video")):
             # Create a copy of the frame for annotations
             annotated_frame = frame.copy()
+            
+            # Apply rotation if needed
+            if rotation == 90:
+                print(f"Rotating frame {i} by 90 degrees counterclockwise")
+                # Rotate 90 degrees counterclockwise
+                annotated_frame = cv2.rotate(annotated_frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                
+                # Transform coordinates for detections and pose keypoints
+                if i in pose_data:
+                    print(f"Transforming pose data for frame {i}")
+                    keypoints = pose_data[i]
+                    # Debug: Check keypoints structure
+                    print(f"Keypoints type: {type(keypoints)}, length: {len(keypoints)}")
+                    if len(keypoints) > 0:
+                        print(f"First keypoint type: {type(keypoints[0])}")
+                        
+                    for j in range(len(keypoints)):
+                        if keypoints[j] is not None and len(keypoints[j]) >= 2:
+                            try:
+                                x, y = keypoints[j][0], keypoints[j][1]
+                                keypoints[j] = (height - y - 1, x)  # Adjusted to fix off-by-one errors
+                            except Exception as e:
+                                print(f"Error transforming keypoint {j}: {str(e)}, value: {keypoints[j]}")
+                                # Keep the keypoint as is if there's an error
+                
+                for detection in detections:
+                    if detection.frame_idx == i * sample_rate:
+                        try:
+                            x1, y1, x2, y2 = detection.bbox
+                            # Transform bbox coordinates for 90 degree rotation
+                            detection.bbox = (height - y2 - 1, x1, height - y1 - 1, x2)
+                        except Exception as e:
+                            print(f"Error transforming detection bbox: {str(e)}")
+                            # Keep the bbox as is if there's an error
+                        
+            elif rotation == 180:
+                # Rotate 180 degrees
+                annotated_frame = cv2.rotate(annotated_frame, cv2.ROTATE_180)
+                
+                # Transform coordinates
+                if i in pose_data:
+                    keypoints = pose_data[i]
+                    for j in range(len(keypoints)):
+                        if keypoints[j] is not None and len(keypoints[j]) >= 2:
+                            try:
+                                x, y = keypoints[j][0], keypoints[j][1]
+                                keypoints[j] = (width - x - 1, height - y - 1)
+                            except Exception as e:
+                                print(f"Error transforming keypoint {j}: {str(e)}")
+                                # Keep the keypoint as is if there's an error
+                
+                for detection in detections:
+                    if detection.frame_idx == i * sample_rate:
+                        try:
+                            x1, y1, x2, y2 = detection.bbox
+                            detection.bbox = (width - x2 - 1, height - y2 - 1, width - x1 - 1, height - y1 - 1)
+                        except Exception as e:
+                            print(f"Error transforming detection bbox: {str(e)}")
+                            # Keep the bbox as is if there's an error
+                        
+            elif rotation == 270:
+                # Rotate 270 degrees counterclockwise (90 degrees clockwise)
+                annotated_frame = cv2.rotate(annotated_frame, cv2.ROTATE_90_CLOCKWISE)
+                
+                # Transform coordinates
+                if i in pose_data:
+                    keypoints = pose_data[i]
+                    for j in range(len(keypoints)):
+                        if keypoints[j] is not None and len(keypoints[j]) >= 2:
+                            try:
+                                x, y = keypoints[j][0], keypoints[j][1]
+                                keypoints[j] = (y, width - x - 1)
+                            except Exception as e:
+                                print(f"Error transforming keypoint {j}: {str(e)}")
+                                # Keep the keypoint as is if there's an error
+                
+                for detection in detections:
+                    if detection.frame_idx == i * sample_rate:
+                        try:
+                            x1, y1, x2, y2 = detection.bbox
+                            detection.bbox = (y1, width - x2 - 1, y2, width - x1 - 1)
+                        except Exception as e:
+                            print(f"Error transforming detection bbox: {str(e)}")
+                            # Keep the bbox as is if there's an error
 
             # Draw detections
             frame_detections = [
                 d for d in detections if d.frame_idx == i * sample_rate
             ]
             for detection in frame_detections:
-                x1, y1, x2, y2 = map(int, detection.bbox)
+                try:
+                    # Check if bbox has exactly 4 values before unpacking
+                    if not hasattr(detection, 'bbox') or not isinstance(detection.bbox, tuple) or len(detection.bbox) != 4:
+                        print(f"Invalid bbox format: {getattr(detection, 'bbox', None)}")
+                        continue
+                        
+                    x1, y1, x2, y2 = map(int, detection.bbox)
 
-                # Draw bounding box
-                color = (0, 255,
-                         0) if detection.class_name == "person" else (0, 0,
-                                                                      255)
-                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                    # Draw bounding box
+                    color = (0, 255,
+                             0) if detection.class_name == "person" else (0, 0,
+                                                                          255)
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
 
-                # Draw label
-                label = f"{detection.class_name}: {detection.confidence:.2f}"
-                cv2.putText(annotated_frame, label, (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    # Draw label
+                    label = f"{detection.class_name}: {detection.confidence:.2f}"
+                    cv2.putText(annotated_frame, label, (x1, y1 - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                except Exception as e:
+                    print(f"Error drawing detection: {str(e)}")
+                    # Skip this detection if there's an error
 
             # Draw pose keypoints with different colors for different body parts
             if i in pose_data:
@@ -111,12 +243,13 @@ def create_annotated_video(video_path,
                 for part_name, part_indices in BODY_PARTS_MAPPING.items():
                     color = BODY_PART_COLORS[part_name]
                     for idx in part_indices:
-                        if idx < len(keypoints
-                                     ) and keypoints[idx] is not None and len(
-                                         keypoints[idx]) >= 2:
-                            x, y = int(keypoints[idx][0]), int(
-                                keypoints[idx][1])
-                            cv2.circle(annotated_frame, (x, y), 5, color, -1)
+                        if idx < len(keypoints) and keypoints[idx] is not None and len(keypoints[idx]) >= 2:
+                            try:
+                                x, y = int(keypoints[idx][0]), int(keypoints[idx][1])
+                                cv2.circle(annotated_frame, (x, y), 5, color, -1)
+                            except Exception as e:
+                                print(f"Error drawing keypoint {idx}: {str(e)}")
+                                # Skip this keypoint if there's an error
 
                 # Draw connections between keypoints
                 mp_pose = mp.solutions.pose
@@ -130,26 +263,28 @@ def create_annotated_video(video_path,
                             and keypoints[end_idx] is not None
                             and len(keypoints[start_idx]) >= 2
                             and len(keypoints[end_idx]) >= 2):
+                        try:
+                            # Determine the color based on the body part of the start point
+                            color = None
+                            for part_name, part_indices in BODY_PARTS_MAPPING.items():
+                                if start_idx in part_indices:
+                                    color = BODY_PART_COLORS[part_name]
+                                    break
 
-                        # Determine the color based on the body part of the start point
-                        color = None
-                        for part_name, part_indices in BODY_PARTS_MAPPING.items(
-                        ):
-                            if start_idx in part_indices:
-                                color = BODY_PART_COLORS[part_name]
-                                break
+                            # If no color found, use white
+                            if color is None:
+                                color = (255, 255, 255)
 
-                        # If no color found, use white
-                        if color is None:
-                            color = (255, 255, 255)
+                            start_point = (int(keypoints[start_idx][0]),
+                                           int(keypoints[start_idx][1]))
+                            end_point = (int(keypoints[end_idx][0]),
+                                         int(keypoints[end_idx][1]))
 
-                        start_point = (int(keypoints[start_idx][0]),
-                                       int(keypoints[start_idx][1]))
-                        end_point = (int(keypoints[end_idx][0]),
-                                     int(keypoints[end_idx][1]))
-
-                        cv2.line(annotated_frame, start_point, end_point,
-                                 color, 2)
+                            cv2.line(annotated_frame, start_point, end_point,
+                                     color, 2)
+                        except Exception as e:
+                            print(f"Error drawing connection {start_idx}-{end_idx}: {str(e)}")
+                            # Skip this connection if there's an error
 
             # Draw swing phase information
             phase = None
@@ -172,13 +307,48 @@ def create_annotated_video(video_path,
                         (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0),
                         2)
 
-                if "ball_trajectory" in traj_info and traj_info[
-                        "ball_trajectory"]:
+                # Adjust ball trajectory points if we rotated the frame
+                if "ball_trajectory" in traj_info and traj_info["ball_trajectory"]:
                     points = traj_info["ball_trajectory"]
-                    for j in range(1, len(points)):
-                        pt1 = (int(points[j - 1][0]), int(points[j - 1][1]))
-                        pt2 = (int(points[j][0]), int(points[j][1]))
-                        cv2.line(annotated_frame, pt1, pt2, (0, 255, 255), 2)
+                    adjusted_points = []
+                    
+                    # Adjust the trajectory points based on rotation
+                    if rotation == 90:  # 90 degrees counterclockwise
+                        for point in points:
+                            try:
+                                x, y = point[0], point[1]  # Access by index to avoid unpacking errors
+                                adjusted_points.append((height - y - 1, x))
+                            except Exception as e:
+                                print(f"Error transforming trajectory point: {str(e)}")
+                                # Skip this point if there's an error
+                    elif rotation == 180:  # 180 degrees
+                        for point in points:
+                            try:
+                                x, y = point[0], point[1]
+                                adjusted_points.append((width - x - 1, height - y - 1))
+                            except Exception as e:
+                                print(f"Error transforming trajectory point: {str(e)}")
+                                # Skip this point if there's an error
+                    elif rotation == 270:  # 270 degrees counterclockwise
+                        for point in points:
+                            try:
+                                x, y = point[0], point[1]
+                                adjusted_points.append((y, width - x - 1))
+                            except Exception as e:
+                                print(f"Error transforming trajectory point: {str(e)}")
+                                # Skip this point if there's an error
+                    else:  # No rotation
+                        adjusted_points = points
+                        
+                    # Draw the trajectory
+                    for j in range(1, len(adjusted_points)):
+                        try:
+                            pt1 = (int(adjusted_points[j - 1][0]), int(adjusted_points[j - 1][1]))
+                            pt2 = (int(adjusted_points[j][0]), int(adjusted_points[j][1]))
+                            cv2.line(annotated_frame, pt1, pt2, (0, 255, 255), 2)
+                        except Exception as e:
+                            print(f"Error drawing trajectory line: {str(e)}")
+                            # Skip this line if there's an error
 
             # Add legend for body part colors
             legend_y_start = 110
