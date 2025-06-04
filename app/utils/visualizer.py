@@ -58,6 +58,10 @@ def create_annotated_video(video_path,
     try:
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
+        
+        # Check if sample rate should be adjusted for short videos
+        if len(frames) < 150 and sample_rate > 1:
+            sample_rate = 1
 
         # Get original video filename without extension
         video_name = os.path.splitext(os.path.basename(video_path))[0]
@@ -143,7 +147,8 @@ def create_annotated_video(video_path,
                         if keypoints[j] is not None and len(keypoints[j]) >= 2:
                             try:
                                 x, y = keypoints[j][0], keypoints[j][1]
-                                keypoints[j] = (height - y - 1, x)  # Adjusted to fix off-by-one errors
+                                # Fix coordinate transformation for 90-degree rotation
+                                keypoints[j] = (y, width - x - 1)
                             except Exception as e:
                                 print(f"Error transforming keypoint {j}: {str(e)}, value: {keypoints[j]}")
                                 # Keep the keypoint as is if there's an error
@@ -152,8 +157,10 @@ def create_annotated_video(video_path,
                     if detection.frame_idx == i * sample_rate:
                         try:
                             x1, y1, x2, y2 = detection.bbox
-                            # Transform bbox coordinates for 90 degree rotation
-                            detection.bbox = (height - y2 - 1, x1, height - y1 - 1, x2)
+                            # Fix bbox coordinate transformation for 90-degree rotation
+                            # The correct transformation for 90 degrees counterclockwise is:
+                            # (y1, width - x2 - 1, y2, width - x1 - 1)
+                            detection.bbox = (y1, width - x2 - 1, y2, width - x1 - 1)
                         except Exception as e:
                             print(f"Error transforming detection bbox: {str(e)}")
                             # Keep the bbox as is if there's an error
@@ -194,7 +201,8 @@ def create_annotated_video(video_path,
                         if keypoints[j] is not None and len(keypoints[j]) >= 2:
                             try:
                                 x, y = keypoints[j][0], keypoints[j][1]
-                                keypoints[j] = (y, width - x - 1)
+                                # Fix coordinate transformation for 270-degree rotation
+                                keypoints[j] = (height - y - 1, x)
                             except Exception as e:
                                 print(f"Error transforming keypoint {j}: {str(e)}")
                                 # Keep the keypoint as is if there's an error
@@ -203,7 +211,10 @@ def create_annotated_video(video_path,
                     if detection.frame_idx == i * sample_rate:
                         try:
                             x1, y1, x2, y2 = detection.bbox
-                            detection.bbox = (y1, width - x2 - 1, y2, width - x1 - 1)
+                            # Fix bbox coordinate transformation for 270-degree rotation
+                            # The correct transformation for 270 degrees counterclockwise is:
+                            # (height - y2 - 1, x1, height - y1 - 1, x2)
+                            detection.bbox = (height - y2 - 1, x1, height - y1 - 1, x2)
                         except Exception as e:
                             print(f"Error transforming detection bbox: {str(e)}")
                             # Keep the bbox as is if there's an error

@@ -203,15 +203,6 @@ def main():
                                              detections,
                                              sample_rate=sample_rate)
 
-                # Display swing phases
-                st.subheader("Swing Phases")
-                phase_cols = st.columns(5)
-                for i, (phase,
-                        frames_in_phase) in enumerate(swing_phases.items()):
-                    with phase_cols[i]:
-                        st.metric(label=phase.capitalize(),
-                                  value=f"{len(frames_in_phase)} frames")
-
             # Step 4: Analyze trajectory and speed
             with st.spinner("Analyzing trajectory and speed..."):
                 trajectory_data = analyze_trajectory(frames,
@@ -219,27 +210,10 @@ def main():
                                                      swing_phases,
                                                      sample_rate=sample_rate)
 
-                # Display club speed if available
-                impact_frames = swing_phases.get("impact", [])
-                if impact_frames:
-                    impact_frame = impact_frames[len(impact_frames) // 2]
-                    if impact_frame in trajectory_data and trajectory_data[
-                            impact_frame].get("club_speed"):
-                        st.subheader("Club Speed")
-                        st.metric(
-                            label="Estimated Club Speed",
-                            value=
-                            f"{trajectory_data[impact_frame]['club_speed']:.1f} mph"
-                        )
-
             # Prepare data for LLM regardless of whether GPT is enabled
             analysis_data = prepare_data_for_llm(pose_data, swing_phases,
                                                  trajectory_data)
             prompt = create_llm_prompt(analysis_data)
-
-            # Display the GPT prompt in an expander (hidden by default)
-            with st.expander("View GPT Prompt", expanded=False):
-                st.code(prompt, language="text")
 
             # Store analysis data in session state
             st.session_state.video_analyzed = True
@@ -250,7 +224,9 @@ def main():
                 'pose_data': pose_data,
                 'swing_phases': swing_phases,
                 'trajectory_data': trajectory_data,
-                'sample_rate': sample_rate
+                'sample_rate': sample_rate,
+                'analysis_data': analysis_data,
+                'prompt': prompt
             }
             
             # Present the two options after analysis
@@ -269,6 +245,35 @@ def main():
 
     # Show action buttons and their results (only if analysis is complete)
     if st.session_state.video_analyzed:
+        # Display swing phases
+        if 'swing_phases' in st.session_state.analysis_data:
+            swing_phases = st.session_state.analysis_data['swing_phases']
+            st.subheader("Swing Phases")
+            phase_cols = st.columns(5)
+            for i, (phase, frames_in_phase) in enumerate(swing_phases.items()):
+                with phase_cols[i]:
+                    st.metric(label=phase.capitalize(),
+                              value=f"{len(frames_in_phase)} frames")
+        
+        # Display club speed if available
+        if 'trajectory_data' in st.session_state.analysis_data and 'swing_phases' in st.session_state.analysis_data:
+            trajectory_data = st.session_state.analysis_data['trajectory_data']
+            swing_phases = st.session_state.analysis_data['swing_phases']
+            impact_frames = swing_phases.get("impact", [])
+            if impact_frames:
+                impact_frame = impact_frames[len(impact_frames) // 2]
+                if impact_frame in trajectory_data and trajectory_data[impact_frame].get("club_speed"):
+                    st.subheader("Club Speed")
+                    st.metric(
+                        label="Estimated Club Speed",
+                        value=f"{trajectory_data[impact_frame]['club_speed']:.1f} mph"
+                    )
+        
+        # Display the GPT prompt in an expander
+        if 'prompt' in st.session_state.analysis_data:
+            with st.expander("View GPT Prompt", expanded=False):
+                st.code(st.session_state.analysis_data['prompt'], language="text")
+        
         # Create columns for the two action buttons
         button_col1, button_col2 = st.columns(2)
         

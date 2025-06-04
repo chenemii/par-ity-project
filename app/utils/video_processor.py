@@ -46,6 +46,12 @@ def process_video(video_path, sample_rate=5):
     # Get video properties
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    
+    # Auto-adjust sample rate based on video length
+    # For short videos (less than 150 frames), don't skip any frames
+    if frame_count < 150 and sample_rate > 1:
+        print(f"Short video detected ({frame_count} frames). Processing all frames.")
+        sample_rate = 1
 
     frames = []
     detections = []

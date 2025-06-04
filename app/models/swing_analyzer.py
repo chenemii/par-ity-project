@@ -33,6 +33,15 @@ def segment_swing(pose_data, detections, sample_rate=5):
 
     if not frame_indices:
         return swing_phases
+        
+    # Auto-adjust sample rate based on number of frames
+    # For short videos (less than 150 frames), don't skip any frames
+    if len(frame_indices) < 150 and sample_rate > 1:
+        # Get the max frame idx to understand video length
+        max_frame_idx = max(frame_indices) if frame_indices else 0
+        # For videos with less than 150 frames, use sample_rate=1
+        if max_frame_idx < 150:
+            sample_rate = 1
 
     # Calculate joint angles for each frame
     angles_by_frame = {}
@@ -115,6 +124,11 @@ def analyze_trajectory(frames, detections, swing_phases, sample_rate=5):
         dict: Dictionary mapping frame indices to trajectory data
     """
     trajectory_data = {}
+    
+    # Auto-adjust sample rate based on number of frames
+    # For short videos (less than 150 frames), don't skip any frames
+    if len(frames) < 150 and sample_rate > 1:
+        sample_rate = 1
 
     # Extract ball detections
     ball_detections = [d for d in detections if d.class_name == "sports ball"]
@@ -151,8 +165,9 @@ def analyze_trajectory(frames, detections, swing_phases, sample_rate=5):
         # Simplified club speed calculation
         # In reality, this would require tracking the club head specifically
         downswing_frames = swing_phases["downswing"]
-        time_diff = (downswing_frames[-1] -
-                     downswing_frames[0]) / 30  # Assuming 30 fps
+        # Account for sample rate when calculating time difference
+        actual_frames_elapsed = (downswing_frames[-1] - downswing_frames[0]) * sample_rate
+        time_diff = actual_frames_elapsed / 30  # Assuming 30 fps
         if time_diff > 0:
             # Simplified speed calculation (just an example)
             club_speed = 100 * (1 / time_diff)  # Arbitrary scaling
