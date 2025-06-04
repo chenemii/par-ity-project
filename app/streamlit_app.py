@@ -118,13 +118,23 @@ def main():
     )
     
     if enable_gpt:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
+        # Check for OpenAI API key in Streamlit secrets
+        api_key_available = False
+        try:
+            if st.secrets["openai"]["api_key"]:
+                api_key_available = True
+                st.sidebar.success("✅ OpenAI API key configured in Streamlit secrets")
+        except (KeyError, FileNotFoundError):
+            # Fallback to environment variable
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                api_key_available = True
+                st.sidebar.success("✅ OpenAI API key configured in environment variables")
+        
+        if not api_key_available:
             st.sidebar.warning(
-                "⚠️ OpenAI API key not found. Set the OPENAI_API_KEY environment variable."
+                "⚠️ OpenAI API key not found. Add it to your .streamlit/secrets.toml file."
             )
-        else:
-            st.sidebar.success("✅ OpenAI API key configured")
     else:
         st.sidebar.info(
             "Using sample analysis mode (no API key required)"
@@ -347,8 +357,16 @@ def main():
                 st.subheader("Swing Analysis and Recommendations")
                 
                 # Check if we're using the sample analysis (no API key)
-                api_key = os.getenv("OPENAI_API_KEY")
-                if not api_key and not enable_gpt:
+                api_key_available = False
+                try:
+                    if st.secrets["openai"]["api_key"]:
+                        api_key_available = True
+                except (KeyError, FileNotFoundError):
+                    api_key = os.getenv("OPENAI_API_KEY")
+                    if api_key:
+                        api_key_available = True
+                
+                if not api_key_available and not enable_gpt:
                     st.info("ℹ️ **Using sample analysis mode**. The recommendations below are general examples and not personalized to your specific swing.")
                 
                 st.markdown(analysis)
