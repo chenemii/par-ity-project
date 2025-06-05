@@ -21,7 +21,7 @@ from app.utils.video_downloader import download_youtube_video
 from app.utils.video_processor import process_video
 from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
-from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm
+from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm, check_llm_services
 from app.utils.visualizer import create_annotated_video
 
 # Set page config
@@ -59,8 +59,7 @@ def display_video(video_path, width=300):
     # Create a container with custom width
     video_container = st.container()
     # Apply CSS to control the width and ensure it's centered
-    video_container.markdown(
-        f"""
+    video_container.markdown(f"""
         <style>
         .element-container:has(video) {{
             max-width: {width}px;
@@ -71,10 +70,9 @@ def display_video(video_path, width=300):
             height: auto !important;
         }}
         </style>
-        """, 
-        unsafe_allow_html=True
-    )
-    
+        """,
+                             unsafe_allow_html=True)
+
     # Display video using st.video with bytes
     with video_container:
         st.video(video_bytes)
@@ -109,36 +107,55 @@ def main():
     # Sidebar for configuration
     st.sidebar.title("Configuration")
 
+    # Check available LLM services
+    llm_services = check_llm_services()
+    any_service_available = llm_services['ollama'][
+        'available'] or llm_services['openai']['available']
+
     # Option to enable/disable GPT analysis with better explanation
-    st.sidebar.markdown("### GPT Analysis Settings")
-    enable_gpt = st.sidebar.checkbox(
-        "Enable GPT Analysis", 
-        value=False,  # Disabled by default
-        help="When enabled, uses OpenAI's API for personalized analysis. Requires API key."
-    )
-    
-    if enable_gpt:
-        # Check for OpenAI API key in Streamlit secrets
-        api_key_available = False
-        try:
-            if st.secrets["openai"]["api_key"]:
-                api_key_available = True
-                st.sidebar.success("✅ OpenAI API key configured in Streamlit secrets")
-        except (KeyError, FileNotFoundError):
-            # Fallback to environment variable
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
-                api_key_available = True
-                st.sidebar.success("✅ OpenAI API key configured in environment variables")
-        
-        if not api_key_available:
-            st.sidebar.warning(
-                "⚠️ OpenAI API key not found. Add it to your .streamlit/secrets.toml file."
-            )
-    else:
-        st.sidebar.info(
-            "Using sample analysis mode (no API key required)"
+    st.sidebar.markdown("### LLM Analysis Settings")
+
+    # Show service status
+    if llm_services['ollama']['available']:
+        st.sidebar.success(
+            f"✅ Ollama configured: {llm_services['ollama']['config']['model']}"
         )
+
+    if llm_services['openai']['available']:
+        st.sidebar.success("✅ OpenAI configured")
+
+    if not any_service_available:
+        st.sidebar.info("ℹ️ No LLM services configured")
+
+    # Automatically enable if services are available, otherwise allow manual control
+    if any_service_available:
+        enable_gpt = st.sidebar.checkbox(
+            "Enable LLM Analysis",
+            value=True,  # Automatically enabled when services are available
+            help=
+            "Uses configured LLM services (Ollama/OpenAI) for personalized analysis."
+        )
+    else:
+        enable_gpt = st.sidebar.checkbox(
+            "Enable LLM Analysis",
+            value=False,  # Disabled by default when no services
+            help="Configure Ollama or OpenAI in secrets to enable LLM analysis."
+        )
+
+    if enable_gpt and not any_service_available:
+        st.sidebar.warning(
+            "⚠️ No LLM services configured. Configure Ollama or OpenAI in your .streamlit/secrets.toml file."
+        )
+    elif enable_gpt:
+        if llm_services['ollama']['available'] and llm_services['openai'][
+                'available']:
+            st.sidebar.info("🔄 Will try Ollama first, then OpenAI as fallback")
+        elif llm_services['ollama']['available']:
+            st.sidebar.info("🦙 Using Ollama for analysis")
+        elif llm_services['openai']['available']:
+            st.sidebar.info("🤖 Using OpenAI for analysis")
+    else:
+        st.sidebar.info("Using sample analysis mode (no LLM required)")
 
     # Frame skip rate for YOLO
     sample_rate = st.sidebar.slider(
@@ -238,16 +255,20 @@ def main():
                 'analysis_data': analysis_data,
                 'prompt': prompt
             }
-            
+
             # Present the two options after analysis
             st.subheader("What would you like to do next?")
             options_col1, options_col2 = st.columns(2)
-            
+
             with options_col1:
-                st.info("**Option 1: Generate Annotated Video**\n\nCreate a video with visual feedback showing your swing phases, body positioning, and key metrics.")
-            
+                st.info(
+                    "**Option 1: Generate Annotated Video**\n\nCreate a video with visual feedback showing your swing phases, body positioning, and key metrics."
+                )
+
             with options_col2:
-                st.info("**Option 2: Generate Improvement Recommendations**\n\nGet AI-powered analysis of your swing with specific tips for improvement.")
+                st.info(
+                    "**Option 2: Generate Improvement Recommendations**\n\nGet AI-powered analysis of your swing with specific tips for improvement."
+                )
 
         except Exception as e:
             st.error(f"Error during analysis: {str(e)}")
@@ -264,7 +285,7 @@ def main():
                 with phase_cols[i]:
                     st.metric(label=phase.capitalize(),
                               value=f"{len(frames_in_phase)} frames")
-        
+
         # Display club speed if available
         if 'trajectory_data' in st.session_state.analysis_data and 'swing_phases' in st.session_state.analysis_data:
             trajectory_data = st.session_state.analysis_data['trajectory_data']
@@ -272,27 +293,34 @@ def main():
             impact_frames = swing_phases.get("impact", [])
             if impact_frames:
                 impact_frame = impact_frames[len(impact_frames) // 2]
-                if impact_frame in trajectory_data and trajectory_data[impact_frame].get("club_speed"):
+                if impact_frame in trajectory_data and trajectory_data[
+                        impact_frame].get("club_speed"):
                     st.subheader("Club Speed")
                     st.metric(
                         label="Estimated Club Speed",
-                        value=f"{trajectory_data[impact_frame]['club_speed']:.1f} mph"
+                        value=
+                        f"{trajectory_data[impact_frame]['club_speed']:.1f} mph"
                     )
-        
+
         # Display the GPT prompt in an expander
         if 'prompt' in st.session_state.analysis_data:
-            with st.expander("View GPT Prompt", expanded=False):
-                st.code(st.session_state.analysis_data['prompt'], language="text")
-        
+            with st.expander("View LLM Prompt", expanded=False):
+                st.code(st.session_state.analysis_data['prompt'],
+                        language="text")
+
         # Create columns for the two action buttons
         button_col1, button_col2 = st.columns(2)
-        
+
         with button_col1:
-            annotated_video_clicked = st.button("Generate Annotated Video", key="create_annotated", use_container_width=True)
-        
+            annotated_video_clicked = st.button("Generate Annotated Video",
+                                                key="create_annotated",
+                                                use_container_width=True)
+
         with button_col2:
-            improvements_clicked = st.button("Generate Improvements", key="gpt_recommendations", use_container_width=True)
-        
+            improvements_clicked = st.button("Generate Improvements",
+                                             key="gpt_recommendations",
+                                             use_container_width=True)
+
         # Handle annotated video creation
         if annotated_video_clicked:
             try:
@@ -320,68 +348,79 @@ def main():
 
                     # Store the annotated video path in session state
                     st.session_state.annotated_video_path = output_path
-                
+
                 # Display success message and video after spinner completes
                 st.success("Annotated video created successfully!")
                 display_video(output_path, width=400)
-                
+
                 # Show download button
                 with open(output_path, "rb") as file:
                     video_bytes = file.read()
-                    st.download_button(
-                        label="Download Annotated Video",
-                        data=video_bytes,
-                        file_name=os.path.basename(output_path),
-                        mime="video/mp4"
-                    )
+                    st.download_button(label="Download Annotated Video",
+                                       data=video_bytes,
+                                       file_name=os.path.basename(output_path),
+                                       mime="video/mp4")
 
             except Exception as e:
                 st.error(f"Error creating annotated video: {str(e)}")
                 st.error(
                     "Please check if the downloads directory exists and is writable"
                 )
-        
+
         # Handle improvement recommendations generation
         if improvements_clicked:
-            with st.spinner("Analyzing your swing and generating recommendations..."):
+            with st.spinner(
+                    "Analyzing your swing and generating recommendations..."):
                 # Get data from session state
                 data = st.session_state.analysis_data
                 pose_data = data['pose_data']
                 swing_phases = data['swing_phases']
                 trajectory_data = data['trajectory_data']
-                
+
                 # Generate detailed analysis with recommendations
-                analysis = generate_swing_analysis(pose_data, swing_phases, trajectory_data)
-                
+                analysis = generate_swing_analysis(pose_data, swing_phases,
+                                                   trajectory_data)
+
                 # Display the analysis
                 st.subheader("Swing Analysis and Recommendations")
-                
-                # Check if we're using the sample analysis (no API key)
-                api_key_available = False
-                try:
-                    if st.secrets["openai"]["api_key"]:
-                        api_key_available = True
-                except (KeyError, FileNotFoundError):
-                    api_key = os.getenv("OPENAI_API_KEY")
-                    if api_key:
-                        api_key_available = True
-                
-                if not api_key_available and not enable_gpt:
-                    st.info("ℹ️ **Using sample analysis mode**. The recommendations below are general examples and not personalized to your specific swing.")
-                
+
+                # Check available services to show appropriate message
+                llm_services = check_llm_services()
+                any_service_available = llm_services['ollama'][
+                    'available'] or llm_services['openai']['available']
+
+                if not any_service_available or not enable_gpt:
+                    st.info(
+                        "ℹ️ **Using sample analysis mode**. The recommendations below are general examples and not personalized to your specific swing."
+                    )
+                else:
+                    if llm_services['ollama']['available'] and llm_services[
+                            'openai']['available']:
+                        st.info(
+                            "🔄 **Analysis generated using available LLM services** (tried Ollama first, OpenAI as fallback)"
+                        )
+                    elif llm_services['ollama']['available']:
+                        st.info("🦙 **Analysis generated using Ollama**")
+                    elif llm_services['openai']['available']:
+                        st.info("🤖 **Analysis generated using OpenAI**")
+
                 st.markdown(analysis)
-                
+
                 # Add some example drills based on the analysis
                 if "Error:" not in analysis:  # Only show drills if analysis was successful
                     st.subheader("Recommended Drills")
                     drill1, drill2 = st.columns(2)
-                    
+
                     with drill1:
                         st.markdown("**Posture Drill**")
                         st.markdown("- Stand with your back against a wall")
-                        st.markdown("- Take your golf stance while maintaining contact")
-                        st.markdown("- Practice maintaining this posture during your swing")
-                    
+                        st.markdown(
+                            "- Take your golf stance while maintaining contact"
+                        )
+                        st.markdown(
+                            "- Practice maintaining this posture during your swing"
+                        )
+
                     with drill2:
                         st.markdown("**Tempo Drill**")
                         st.markdown("- Count '1-2-3' for your backswing")

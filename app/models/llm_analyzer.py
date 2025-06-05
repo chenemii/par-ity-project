@@ -8,6 +8,49 @@ from openai import OpenAI
 import streamlit as st
 
 
+def check_llm_services():
+    """
+    Check which LLM services are configured
+    
+    Returns:
+        dict: Dictionary with service availability and configuration
+    """
+    services = {
+        'ollama': {
+            'available': False,
+            'config': {}
+        },
+        'openai': {
+            'available': False,
+            'config': {}
+        }
+    }
+
+    # Check Ollama configuration
+    try:
+        ollama_url = st.secrets.get("ollama", {}).get("base_url", "")
+        ollama_model = st.secrets.get("ollama", {}).get("model", "")
+        if ollama_url and ollama_model:
+            services['ollama']['available'] = True
+            services['ollama']['config'] = {
+                'base_url': ollama_url,
+                'model': ollama_model
+            }
+    except (KeyError, FileNotFoundError, AttributeError):
+        pass
+
+    # Check OpenAI configuration
+    try:
+        openai_key = st.secrets.get("openai", {}).get("api_key", "")
+        if openai_key:
+            services['openai']['available'] = True
+            services['openai']['config'] = {'api_key': openai_key}
+    except (KeyError, FileNotFoundError, AttributeError):
+        pass
+
+    return services
+
+
 def generate_swing_analysis(pose_data, swing_phases, trajectory_data):
     """
     Generate swing analysis and coaching tips using LLM
@@ -20,111 +63,162 @@ def generate_swing_analysis(pose_data, swing_phases, trajectory_data):
     Returns:
         str: Detailed swing analysis and coaching tips
     """
-    # Check if OpenAI API key is available from secrets
-    try:
-        api_key = st.secrets["openai"]["api_key"]
-    except (KeyError, FileNotFoundError):
-        # Return a sample analysis instead of an error message
-        return """
-## Swing Analysis Summary
+    # Check available services
+    services = check_llm_services()
 
-Based on the video analysis, here are some observations about your swing:
-
-### Setup Phase
-- Your stance appears slightly wider than shoulder-width, which can provide good stability
-- Your posture shows a good spine angle, though you could bend slightly more from the hips
-- The ball position looks appropriate for the club you're using
-
-### Backswing
-- Your takeaway is smooth with good tempo
-- Your wrist hinge develops appropriately in the backswing
-- Your right elbow could be kept a bit closer to your body for better consistency
-
-### Downswing
-- Good weight transfer from back foot to front foot during the transition
-- Your hips are rotating well through impact
-- The swing plane looks consistent throughout the downswing
-
-### Impact
-- Club face alignment at impact appears slightly open
-- Your head position is stable through impact
-- The club path is on a good line toward the target
-
-### Follow Through
-- Good balance maintained through the finish
-- Full extension of arms after impact
-- Complete rotation of the body toward the target
-
-## Areas for Improvement
-
-1. **Club Face Control**: The slightly open club face at impact suggests you may be prone to slicing the ball. Focus on maintaining a square club face through impact.
-
-2. **Right Elbow Position**: Keeping your right elbow closer to your body during the backswing will help create a more consistent swing plane.
-
-3. **Hip Rotation**: While your hip rotation is good, increasing the speed of rotation could generate more power in your swing.
-
-4. **Wrist Release**: Your wrist release could be more active through impact to generate additional club head speed.
-
-These adjustments should help improve both consistency and distance in your swing.
-"""
+    # If no services are available, return sample analysis
+    if not services['ollama']['available'] and not services['openai'][
+            'available']:
+        return get_sample_analysis()
 
     # Prepare data for LLM
     analysis_data = prepare_data_for_llm(pose_data, swing_phases,
                                          trajectory_data)
-
-    # Generate prompt for LLM
     prompt = create_llm_prompt(analysis_data)
 
+    # Try Ollama first if available
+    if services['ollama']['available']:
+        try:
+            analysis = call_ollama_service(prompt,
+                                           services['ollama']['config'])
+            if analysis:
+                return analysis
+        except Exception as e:
+            print(f"Error with Ollama: {str(e)}. Falling back to OpenAI...")
+
+    # Try OpenAI if available
+    if services['openai']['available']:
+        try:
+            analysis = call_openai_service(prompt,
+                                           services['openai']['config'])
+            if analysis:
+                return analysis
+        except Exception as e:
+            print(
+                f"Error with OpenAI: {str(e)}. Using sample analysis instead.")
+
+    # If both services failed, return sample analysis
+    return get_sample_analysis()
+
+
+def call_ollama_service(prompt, config):
+    """
+    Call Ollama service for analysis
+    
+    Args:
+        prompt (str): The analysis prompt
+        config (dict): Ollama configuration
+        
+    Returns:
+        str: Analysis result or None if failed
+    """
+    try:
+        # Create a custom httpx client
+        http_client = httpx.Client()
+
+        # Initialize OpenAI client with Ollama endpoint
+        client = OpenAI(
+            base_url=config['base_url'],
+            api_key="ollama",  # Ollama doesn't need a real API key
+            http_client=http_client)
+
+        response = client.chat.completions.create(
+            model=config['model'],
+            messages=[{
+                "role":
+                "system",
+                "content":
+                "You are a professional golf coach with expertise in analyzing golf swings. Provide detailed, actionable feedback based on the swing data provided."
+            }, {
+                "role": "user",
+                "content": prompt
+            }],
+            temperature=0.7,
+            max_tokens=1000)
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        print(f"Ollama service error: {str(e)}")
+        return None
+
+
+def call_openai_service(prompt, config):
+    """
+    Call OpenAI service for analysis
+    
+    Args:
+        prompt (str): The analysis prompt
+        config (dict): OpenAI configuration
+        
+    Returns:
+        str: Analysis result or None if failed
+    """
     try:
         # Create a custom httpx client without proxies
         http_client = httpx.Client()
-        
-        # Initialize the OpenAI client with the custom http client
-        # This avoids any proxy settings that might be causing issues
-        client = OpenAI(
-            api_key=api_key,
-            http_client=http_client
-        )
-        
+
+        # Initialize the OpenAI client
+        client = OpenAI(api_key=config['api_key'], http_client=http_client)
+
         try:
             # Try with GPT-4 first
             response = client.chat.completions.create(
                 model="gpt-4-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a professional golf coach with expertise in analyzing golf swings. Provide detailed, actionable feedback based on the swing data provided."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=[{
+                    "role":
+                    "system",
+                    "content":
+                    "You are a professional golf coach with expertise in analyzing golf swings. Provide detailed, actionable feedback based on the swing data provided."
+                }, {
+                    "role": "user",
+                    "content": prompt
+                }],
                 temperature=0.7,
-                max_tokens=1000
-            )
-            
-            # Extract content from the response
-            analysis = response.choices[0].message.content
-            return analysis
-            
+                max_tokens=1000)
+
+            return response.choices[0].message.content
+
         except Exception as gpt4_error:
             # If there's an error with GPT-4 (like quota exceeded), try GPT-3.5
-            print(f"Error with GPT-4: {str(gpt4_error)}. Falling back to GPT-3.5-turbo...")
-            
+            print(
+                f"Error with GPT-4: {str(gpt4_error)}. Falling back to GPT-3.5-turbo..."
+            )
+
             try:
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a professional golf coach with expertise in analyzing golf swings. Provide detailed, actionable feedback based on the swing data provided."},
-                        {"role": "user", "content": prompt}
-                    ],
+                    messages=[{
+                        "role":
+                        "system",
+                        "content":
+                        "You are a professional golf coach with expertise in analyzing golf swings. Provide detailed, actionable feedback based on the swing data provided."
+                    }, {
+                        "role": "user",
+                        "content": prompt
+                    }],
                     temperature=0.7,
-                    max_tokens=1000
-                )
-                
-                # Extract content from the response
-                analysis = response.choices[0].message.content
-                return analysis
-                
+                    max_tokens=1000)
+
+                return response.choices[0].message.content
+
             except Exception as gpt35_error:
-                # Both models failed, return the sample analysis
-                print(f"Error with GPT-3.5: {str(gpt35_error)}. Using sample analysis instead.")
-                return """
+                print(f"Error with GPT-3.5: {str(gpt35_error)}")
+                return None
+
+    except Exception as e:
+        print(f"OpenAI service error: {str(e)}")
+        return None
+
+
+def get_sample_analysis():
+    """
+    Return sample analysis when no LLM services are available
+    
+    Returns:
+        str: Sample swing analysis
+    """
+    return """
 ## Swing Analysis Summary
 
 Based on the video analysis, here are some observations about your swing:
@@ -166,9 +260,6 @@ Based on the video analysis, here are some observations about your swing:
 
 These adjustments should help improve both consistency and distance in your swing.
 """
-
-    except Exception as e:
-        return f"Error generating swing analysis: {str(e)}"
 
 
 def prepare_data_for_llm(pose_data, swing_phases, trajectory_data):
@@ -214,18 +305,18 @@ def prepare_data_for_llm(pose_data, swing_phases, trajectory_data):
     # Calculate backswing and downswing durations if available
     backswing_frames = swing_phases.get("backswing", [])
     downswing_frames = swing_phases.get("downswing", [])
-    
+
     backswing_duration = None
     downswing_duration = None
-    
+
     if backswing_frames:
         # Assuming 30 fps video
         backswing_duration = len(backswing_frames) / 30.0
-    
+
     if downswing_frames:
         # Assuming 30 fps video
         downswing_duration = len(downswing_frames) / 30.0
-    
+
     # Calculate tempo ratio if both durations are available
     tempo_ratio = None
     if backswing_duration and downswing_duration and downswing_duration > 0:
@@ -241,32 +332,34 @@ def prepare_data_for_llm(pose_data, swing_phases, trajectory_data):
         "hip_rotation": 45,  # degrees
         "shoulder_rotation": 90,  # degrees
         "posture_score": 0.8,  # 0-1 scale
-        
+
         # Upper body mechanics
         "arm_extension": 0.8,  # 0-1 scale
         "wrist_hinge": 80,  # degrees
         "chest_rotation_efficiency": 0.75,  # 0-1 scale
         "head_movement_lateral": 2.5,  # inches
         "head_movement_vertical": 1.8,  # inches
-        
+
         # Lower body mechanics
         "knee_flexion_address": 25,  # degrees
         "knee_flexion_impact": 30,  # degrees
         "hip_thrust": 0.6,  # 0-1 scale
         "ground_force_efficiency": 0.7,  # 0-1 scale
-        
+
         # Club path and face metrics
-        "swing_path": 2.5,  # degrees (positive = out-to-in, negative = in-to-out)
+        "swing_path":
+        2.5,  # degrees (positive = out-to-in, negative = in-to-out)
         "clubface_angle": 2.1,  # degrees (positive = open, negative = closed)
-        "attack_angle": -4.2,  # degrees (negative = descending, positive = ascending)
+        "attack_angle":
+        -4.2,  # degrees (negative = descending, positive = ascending)
         "club_path_consistency": 0.78,  # 0-1 scale
-        
+
         # Tempo and timing metrics
         "transition_smoothness": 0.75,  # 0-1 scale
         "backswing_duration": backswing_duration or 0.9,  # seconds
         "downswing_duration": downswing_duration or 0.3,  # seconds
         "kinematic_sequence": 0.82,  # 0-1 scale
-        
+
         # Efficiency and power metrics
         "energy_transfer": 0.78,  # 0-1 scale
         "potential_distance": 240,  # yards
@@ -299,62 +392,89 @@ I've analyzed a golf swing and extracted the following data:
 
     # Add trajectory information
     prompt += "\n## Trajectory Data\n"
-    if "trajectory" in analysis_data and "club_speed_mph" in analysis_data["trajectory"]:
+    if "trajectory" in analysis_data and "club_speed_mph" in analysis_data[
+            "trajectory"]:
         prompt += f"- Club Speed: {analysis_data['trajectory']['club_speed_mph']:.1f} mph\n"
-    
+
     # Add detailed biomechanical metrics
     prompt += "\n## Swing Mechanics\n"
-    
+
     # Core body mechanics
     prompt += "\n### Body Mechanics\n"
-    prompt += "- Tempo Ratio (Backswing:Downswing): {:.1f}\n".format(analysis_data["metrics"].get("tempo_ratio", 0))
-    prompt += "- Hip Rotation (degrees): {}\n".format(analysis_data["metrics"].get("hip_rotation", 0))
-    prompt += "- Shoulder Rotation (degrees): {}\n".format(analysis_data["metrics"].get("shoulder_rotation", 0))
-    prompt += "- Posture Score: {}%\n".format(int(analysis_data["metrics"].get("posture_score", 0) * 100))
-    
+    prompt += "- Tempo Ratio (Backswing:Downswing): {:.1f}\n".format(
+        analysis_data["metrics"].get("tempo_ratio", 0))
+    prompt += "- Hip Rotation (degrees): {}\n".format(
+        analysis_data["metrics"].get("hip_rotation", 0))
+    prompt += "- Shoulder Rotation (degrees): {}\n".format(
+        analysis_data["metrics"].get("shoulder_rotation", 0))
+    prompt += "- Posture Score: {}%\n".format(
+        int(analysis_data["metrics"].get("posture_score", 0) * 100))
+
     # Upper body mechanics
     prompt += "\n### Upper Body Mechanics\n"
-    prompt += "- Arm Extension (impact): {}%\n".format(int(analysis_data["metrics"].get("arm_extension", 0.8) * 100))
-    prompt += "- Wrist Hinge (degrees): {}\n".format(analysis_data["metrics"].get("wrist_hinge", 0))
-    prompt += "- Shoulder Plane Consistency: {}%\n".format(int(analysis_data["metrics"].get("swing_plane_consistency", 0) * 100))
-    prompt += "- Chest Rotation Efficiency: {}%\n".format(int(analysis_data["metrics"].get("chest_rotation_efficiency", 0.75) * 100))
-    prompt += "- Head Movement (lateral): {}in\n".format(analysis_data["metrics"].get("head_movement_lateral", 2.5))
-    prompt += "- Head Movement (vertical): {}in\n".format(analysis_data["metrics"].get("head_movement_vertical", 1.8))
-    
+    prompt += "- Arm Extension (impact): {}%\n".format(
+        int(analysis_data["metrics"].get("arm_extension", 0.8) * 100))
+    prompt += "- Wrist Hinge (degrees): {}\n".format(
+        analysis_data["metrics"].get("wrist_hinge", 0))
+    prompt += "- Shoulder Plane Consistency: {}%\n".format(
+        int(analysis_data["metrics"].get("swing_plane_consistency", 0) * 100))
+    prompt += "- Chest Rotation Efficiency: {}%\n".format(
+        int(analysis_data["metrics"].get("chest_rotation_efficiency", 0.75) *
+            100))
+    prompt += "- Head Movement (lateral): {}in\n".format(
+        analysis_data["metrics"].get("head_movement_lateral", 2.5))
+    prompt += "- Head Movement (vertical): {}in\n".format(
+        analysis_data["metrics"].get("head_movement_vertical", 1.8))
+
     # Lower body mechanics
     prompt += "\n### Lower Body Mechanics\n"
-    prompt += "- Weight Shift (lead foot at impact): {}%\n".format(int(analysis_data["metrics"].get("weight_shift", 0) * 100))
-    prompt += "- Knee Flexion (address): {}°\n".format(analysis_data["metrics"].get("knee_flexion_address", 25))
-    prompt += "- Knee Flexion (impact): {}°\n".format(analysis_data["metrics"].get("knee_flexion_impact", 30))
-    prompt += "- Hip Thrust (impact): {}%\n".format(int(analysis_data["metrics"].get("hip_thrust", 0.6) * 100))
-    prompt += "- Ground Force Efficiency: {}%\n".format(int(analysis_data["metrics"].get("ground_force_efficiency", 0.7) * 100))
-    
+    prompt += "- Weight Shift (lead foot at impact): {}%\n".format(
+        int(analysis_data["metrics"].get("weight_shift", 0) * 100))
+    prompt += "- Knee Flexion (address): {}°\n".format(
+        analysis_data["metrics"].get("knee_flexion_address", 25))
+    prompt += "- Knee Flexion (impact): {}°\n".format(
+        analysis_data["metrics"].get("knee_flexion_impact", 30))
+    prompt += "- Hip Thrust (impact): {}%\n".format(
+        int(analysis_data["metrics"].get("hip_thrust", 0.6) * 100))
+    prompt += "- Ground Force Efficiency: {}%\n".format(
+        int(analysis_data["metrics"].get("ground_force_efficiency", 0.7) *
+            100))
+
     # Swing path and clubface metrics
     prompt += "\n### Club Path & Face Metrics\n"
     prompt += "- Swing Path (degrees): {} ({})\n".format(
-        analysis_data["metrics"].get("swing_path", 2.5),
-        "Out-to-In" if analysis_data["metrics"].get("swing_path", 0) > 0 else "In-to-Out")
+        analysis_data["metrics"].get("swing_path", 2.5), "Out-to-In"
+        if analysis_data["metrics"].get("swing_path", 0) > 0 else "In-to-Out")
     prompt += "- Clubface Angle (degrees): {} ({})\n".format(
-        analysis_data["metrics"].get("clubface_angle", 2.1),
-        "Open" if analysis_data["metrics"].get("clubface_angle", 0) > 0 else "Closed")
+        analysis_data["metrics"].get("clubface_angle", 2.1), "Open"
+        if analysis_data["metrics"].get("clubface_angle", 0) > 0 else "Closed")
     prompt += "- Attack Angle (degrees): {} ({})\n".format(
-        analysis_data["metrics"].get("attack_angle", -4.2),
-        "Descending" if analysis_data["metrics"].get("attack_angle", 0) < 0 else "Ascending")
-    prompt += "- Club Path Consistency: {}%\n".format(int(analysis_data["metrics"].get("club_path_consistency", 0.78) * 100))
-    
+        analysis_data["metrics"].get("attack_angle", -4.2), "Descending" if
+        analysis_data["metrics"].get("attack_angle", 0) < 0 else "Ascending")
+    prompt += "- Club Path Consistency: {}%\n".format(
+        int(analysis_data["metrics"].get("club_path_consistency", 0.78) * 100))
+
     # Tempo and timing metrics
     prompt += "\n### Tempo & Timing\n"
-    prompt += "- Transition Smoothness: {}%\n".format(int(analysis_data["metrics"].get("transition_smoothness", 0.75) * 100))
-    prompt += "- Backswing Duration: {} seconds\n".format(analysis_data["metrics"].get("backswing_duration", 0.9))
-    prompt += "- Downswing Duration: {} seconds\n".format(analysis_data["metrics"].get("downswing_duration", 0.3))
-    prompt += "- Sequential Kinematic Sequence: {}%\n".format(int(analysis_data["metrics"].get("kinematic_sequence", 0.82) * 100))
-    
+    prompt += "- Transition Smoothness: {}%\n".format(
+        int(analysis_data["metrics"].get("transition_smoothness", 0.75) * 100))
+    prompt += "- Backswing Duration: {} seconds\n".format(
+        analysis_data["metrics"].get("backswing_duration", 0.9))
+    prompt += "- Downswing Duration: {} seconds\n".format(
+        analysis_data["metrics"].get("downswing_duration", 0.3))
+    prompt += "- Sequential Kinematic Sequence: {}%\n".format(
+        int(analysis_data["metrics"].get("kinematic_sequence", 0.82) * 100))
+
     # Efficiency and power metrics
     prompt += "\n### Efficiency & Power Metrics\n"
-    prompt += "- Energy Transfer Efficiency: {}%\n".format(int(analysis_data["metrics"].get("energy_transfer", 0.78) * 100))
-    prompt += "- Potential Distance: {} yards\n".format(analysis_data["metrics"].get("potential_distance", 240))
-    prompt += "- Power Accumulation: {}%\n".format(int(analysis_data["metrics"].get("power_accumulation", 0.75) * 100))
-    prompt += "- Speed Generation Method: {}\n".format(analysis_data["metrics"].get("speed_generation", "Arms-dominant"))
+    prompt += "- Energy Transfer Efficiency: {}%\n".format(
+        int(analysis_data["metrics"].get("energy_transfer", 0.78) * 100))
+    prompt += "- Potential Distance: {} yards\n".format(
+        analysis_data["metrics"].get("potential_distance", 240))
+    prompt += "- Power Accumulation: {}%\n".format(
+        int(analysis_data["metrics"].get("power_accumulation", 0.75) * 100))
+    prompt += "- Speed Generation Method: {}\n".format(
+        analysis_data["metrics"].get("speed_generation", "Arms-dominant"))
 
     prompt += """
 

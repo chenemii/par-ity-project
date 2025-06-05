@@ -9,7 +9,7 @@ A tool for analyzing golf swings using computer vision and AI.
 - Pose estimation and tracking
 - Swing phase segmentation
 - Club and ball trajectory analysis
-- LLM-powered swing analysis and coaching tips
+- LLM-powered swing analysis and coaching tips (OpenAI GPT-4/3.5 or local Ollama models)
 - Annotated video generation
 - Side-by-side comparison with professional golfer
 - Improvement recommendations from AI analysis
@@ -29,10 +29,32 @@ A tool for analyzing golf swings using computer vision and AI.
    - Save a video of a professional golfer's swing as `pro_golfer.mp4` in the `downloads` directory
    - This will be used for the side-by-side comparison feature
 
-5. Set your OpenAI API key as an environment variable:
-   ```
-   export OPENAI_API_KEY="your-api-key"
-   ```
+5. Set up LLM services for analysis (optional):
+
+   **Option 1: OpenAI**
+   - Set your OpenAI API key in `.streamlit/secrets.toml`:
+     ```toml
+     [openai]
+     api_key = "your-openai-api-key-here"
+     ```
+
+   **Option 2: Ollama (Local LLM)**
+   - Install and run Ollama locally: https://ollama.ai/
+   - Configure in `.streamlit/secrets.toml`:
+     ```toml
+     [ollama]
+     base_url = "http://localhost:11434/v1"
+     model = "llama2"  # or your preferred model
+     ```
+
+   **Option 3: Both Services**
+   - Configure both in `.streamlit/secrets.toml` for automatic fallback
+   - The app will try Ollama first, then OpenAI if Ollama fails
+
+   **No Configuration**
+   - The app works without any LLM configuration using sample analysis mode
+
+   See `.streamlit/secrets.toml.example` for a complete configuration template.
 
 ## Running the Application
 
@@ -61,7 +83,7 @@ The application uses:
 - YOLOv8 for object detection
 - MediaPipe for pose estimation
 - OpenCV for video processing
-- OpenAI GPT-4 for swing analysis
+- OpenAI GPT-4/3.5 or Ollama for swing analysis
 - Streamlit for the web interface
 
 ## Directory Structure
