@@ -25,8 +25,8 @@ from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, 
 from app.utils.visualizer import create_annotated_video
 
 # Set page config
-st.set_page_config(page_title="Golf Swing Analysis",
-                   page_icon="🏌️",
+st.set_page_config(page_title="Par-ity Project: Golf Swing Analysis 🏌️‍♀️",
+                   page_icon="🏌️‍♀️",
                    layout="wide",
                    initial_sidebar_state="expanded")
 
@@ -87,9 +87,8 @@ def display_video(video_path, width=300):
 # Main app
 def main():
     """Main Streamlit application"""
-    st.title("🏌️ Golf Swing Analysis")
-    st.write("Analyze your golf swing using computer vision and AI")
-
+    st.title("Par-ity Project: Golf Swing Analysis 🏌️‍♀️")
+    st.write("Founded to address the gender gap in golf participation and access to quality coaching resources, Par-ity Project is a technology-driven initiative empowering girls in golf through innovative AI based swing analysis. This technology uses computer vision and machine learning algorithms to analyze golf swings and provide personalized feedback to improve technique and performance.")
     # Initialize session state for storing analysis results
     if 'video_analyzed' not in st.session_state:
         st.session_state.video_analyzed = False
