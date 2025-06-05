@@ -1,9 +1,9 @@
 opencv-python-headless
 yt-dlp==2025.2.19
-ultralytics==8.1.0
-mediapipe==0.10.13
-numpy==1.26.4
-matplotlib==3.8.0
+ultralytics
+mediapipe
+numpy
+matplotlib
 torch==2.2.0
 torchvision==0.17.0
 openai==1.6.0
