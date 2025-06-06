@@ -17,12 +17,13 @@ load_dotenv()
 # Add the app directory to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.video_downloader import download_youtube_video
+from app.utils.video_downloader import download_youtube_video, download_pro_reference
 from app.utils.video_processor import process_video
 from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
 from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm, check_llm_services
 from app.utils.visualizer import create_annotated_video
+from app.utils.comparison import create_frame_by_frame_comparison
 
 # Set page config
 st.set_page_config(page_title="Par-ity Project: Golf Swing Analysis 🏌️‍♀️",
@@ -102,6 +103,8 @@ def main():
             'trajectory_data': None,
             'sample_rate': None
         }
+    if 'pro_reference_path' not in st.session_state:
+        st.session_state.pro_reference_path = None
 
     # Sidebar for configuration
     st.sidebar.title("Configuration")
@@ -164,6 +167,23 @@ def main():
         value=5,
         help=
         "Process every Nth frame. Higher values = faster but less accurate.")
+        
+    # Pro reference toggle
+    enable_pro_comparison = st.sidebar.checkbox(
+        "Enable Pro Comparison",
+        value=True,
+        help="Compare your swing with a professional golfer reference"
+    )
+    
+    # Pro reference URL input
+    if enable_pro_comparison:
+        pro_url = st.sidebar.text_input(
+            "Pro Golfer Reference URL",
+            value="https://www.youtube.com/shorts/geR666LWSHg",
+            help="YouTube URL of professional golfer swing (default provided)"
+        )
+    else:
+        pro_url = None
 
     # Video input options
     st.header("Video Input")
@@ -208,6 +228,18 @@ def main():
                     st.error(f"Error processing video: {str(e)}")
                     st.session_state.video_analyzed = False
                     return
+    
+    # Download pro reference if enabled
+    if enable_pro_comparison and (video_path or st.session_state.video_analyzed):
+        if not st.session_state.pro_reference_path:
+            with st.spinner("Downloading professional golfer reference..."):
+                try:
+                    pro_path = download_pro_reference(pro_url)
+                    st.session_state.pro_reference_path = pro_path
+                    st.success("Professional reference downloaded successfully!")
+                except Exception as e:
+                    st.error(f"Error downloading pro reference: {str(e)}")
+                    st.session_state.pro_reference_path = None
 
     # Process video if available and analyze button was clicked
     if video_path and analyze_clicked:
@@ -255,9 +287,9 @@ def main():
                 'prompt': prompt
             }
 
-            # Present the two options after analysis
+            # Present the options after analysis
             st.subheader("What would you like to do next?")
-            options_col1, options_col2 = st.columns(2)
+            options_col1, options_col2, options_col3 = st.columns(3)
 
             with options_col1:
                 st.info(
@@ -268,6 +300,12 @@ def main():
                 st.info(
                     "**Option 2: Generate Improvement Recommendations**\n\nGet AI-powered analysis of your swing with specific tips for improvement."
                 )
+                
+            with options_col3:
+                if enable_pro_comparison and st.session_state.pro_reference_path:
+                    st.info(
+                        "**Option 3: Compare With Pro**\n\nSee a side-by-side frame-by-frame comparison with a professional golfer's swing."
+                    )
 
         except Exception as e:
             st.error(f"Error during analysis: {str(e)}")
@@ -307,8 +345,12 @@ def main():
                 st.code(st.session_state.analysis_data['prompt'],
                         language="text")
 
-        # Create columns for the two action buttons
-        button_col1, button_col2 = st.columns(2)
+        # Create columns for the action buttons
+        if enable_pro_comparison and st.session_state.pro_reference_path:
+            button_col1, button_col2, button_col3 = st.columns(3)
+        else:
+            button_col1, button_col2 = st.columns(2)
+            button_col3 = None
 
         with button_col1:
             annotated_video_clicked = st.button("Generate Annotated Video",
@@ -319,6 +361,15 @@ def main():
             improvements_clicked = st.button("Generate Improvements",
                                              key="gpt_recommendations",
                                              use_container_width=True)
+        
+        # Add pro comparison button if enabled
+        if enable_pro_comparison and st.session_state.pro_reference_path and button_col3:
+            with button_col3:
+                comparison_clicked = st.button("Compare With Pro",
+                                              key="pro_comparison",
+                                              use_container_width=True)
+        else:
+            comparison_clicked = False
 
         # Handle annotated video creation
         if annotated_video_clicked:
@@ -425,6 +476,65 @@ def main():
                         st.markdown("- Count '1-2-3' for your backswing")
                         st.markdown("- Count '1' for your downswing")
                         st.markdown("- Practice maintaining a 3:1 tempo ratio")
+        
+        # Handle pro comparison video creation
+        if comparison_clicked and st.session_state.pro_reference_path:
+            try:
+                with st.spinner("Creating frame-by-frame comparison..."):
+                    # Get data from session state
+                    user_video_path = st.session_state.analysis_data['video_path']
+                    pro_video_path = st.session_state.pro_reference_path
+                    
+                    # Create the comparison video
+                    comparison_path = create_frame_by_frame_comparison(
+                        user_video_path,
+                        pro_video_path
+                    )
+                    
+                    # Verify the file exists
+                    if not os.path.exists(comparison_path):
+                        raise FileNotFoundError(
+                            f"Comparison video file not found at {comparison_path}")
+                    
+                    # Store the comparison video path in session state
+                    st.session_state.comparison_video_path = comparison_path
+                
+                # Display success message and video
+                st.success("Frame-by-frame comparison created successfully!")
+                st.subheader("Side-by-Side Comparison with Pro Golfer")
+                
+                # Display video with larger width
+                display_video(comparison_path, width=800)
+                
+                # Show download button
+                with open(comparison_path, "rb") as file:
+                    video_bytes = file.read()
+                    st.download_button(
+                        label="Download Comparison Video",
+                        data=video_bytes,
+                        file_name=os.path.basename(comparison_path),
+                        mime="video/mp4"
+                    )
+                
+                # Add some guidance for interpreting the comparison
+                with st.expander("How to use this comparison", expanded=True):
+                    st.markdown("""
+                    ### How to Interpret This Comparison
+                    
+                    This side-by-side comparison allows you to see how your swing compares to a professional golfer's swing frame by frame. Look for these key differences:
+                    
+                    1. **Posture and Setup**: Compare your stance, grip, and alignment at address
+                    2. **Backswing Rotation**: Note how much shoulder and hip rotation occurs
+                    3. **Top of Swing Position**: Observe club position and body alignment
+                    4. **Downswing Sequence**: Watch how the pro initiates the downswing
+                    5. **Impact Position**: Compare body positioning at impact
+                    6. **Follow-through**: Note how weight transfers and body rotates after impact
+                    
+                    Try pausing the video at key positions to analyze differences in detail.
+                    """)
+            
+            except Exception as e:
+                st.error(f"Error creating comparison video: {str(e)}")
 
 
 if __name__ == "__main__":

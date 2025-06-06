@@ -77,3 +77,61 @@ def download_youtube_video(url, output_dir="downloads"):
         raise ValueError(f"Error downloading video: {str(e)}")
     except Exception as e:
         raise ValueError(f"Error: {str(e)}")
+
+
+def download_pro_reference(url="https://www.youtube.com/shorts/geR666LWSHg", output_dir="downloads"):
+    """
+    Download a professional golfer reference video
+    
+    Args:
+        url (str): YouTube video URL of professional golfer (default: provided reference)
+        output_dir (str): Directory to save the downloaded video
+        
+    Returns:
+        str: Path to the downloaded pro reference video file
+    """
+    try:
+        # Create a specific filename for the pro reference
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Check if pro reference already exists to avoid re-downloading
+        pro_file_path = os.path.join(output_dir, "pro_reference.mp4")
+        if os.path.exists(pro_file_path):
+            return pro_file_path
+            
+        # Set output template for the downloaded file with fixed name
+        output_template = os.path.join(output_dir, "pro_reference.%(ext)s")
+        
+        # Configure yt-dlp options
+        ydl_opts = {
+            'format': 'best[ext=mp4]/best',  # Prefer mp4 format
+            'outtmpl': output_template,
+            'noplaylist': True,
+            'quiet': False,
+            'no_warnings': False,
+            'ignoreerrors': False,
+        }
+        
+        # Create yt-dlp object and download the video
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.extract_info(url, download=True)
+            
+        # Check if file exists with mp4 extension
+        if os.path.exists(pro_file_path):
+            return pro_file_path
+        else:
+            # Try other extensions
+            for ext in ['webm', 'mkv']:
+                alt_path = os.path.join(output_dir, f"pro_reference.{ext}")
+                if os.path.exists(alt_path):
+                    return alt_path
+                    
+            # If still not found, download as normal video and rename
+            video_path = download_youtube_video(url, output_dir)
+            ext = os.path.splitext(video_path)[1]
+            new_path = os.path.join(output_dir, f"pro_reference{ext}")
+            os.rename(video_path, new_path)
+            return new_path
+            
+    except Exception as e:
+        raise ValueError(f"Error downloading pro reference: {str(e)}")

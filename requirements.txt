@@ -1,5 +1,5 @@
 opencv-python-headless
-yt-dlp==2025.2.19
+yt-dlp==2025.05.22
 ultralytics
 mediapipe
 numpy
