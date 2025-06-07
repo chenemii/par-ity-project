@@ -11,8 +11,8 @@ A tool for analyzing golf swings using computer vision and AI.
 - Club and ball trajectory analysis
 - LLM-powered swing analysis and coaching tips (OpenAI GPT-4/3.5 or local Ollama models)
 - Annotated video generation
-- Side-by-side comparison with professional golfer
-- Improvement recommendations from AI analysis
+- Key position comparison with professional golfer (3 critical swing positions)
+- Detailed improvement recommendations with visual analysis
 
 ## Setup
 
@@ -74,8 +74,12 @@ streamlit run app/streamlit_app.py
 2. Click "Analyze Swing" to process the video
 3. View the swing phase breakdown and metrics
 4. Generate an annotated video showing the analysis
-5. Compare your swing side-by-side with a professional golfer
-6. Get AI-powered improvement recommendations
+5. Compare your swing at 3 key positions with a professional golfer:
+   - Starting position (setup)
+   - Top of backswing
+   - Impact with ball
+6. Get detailed improvement recommendations for each swing phase
+7. Download comparison images and analysis results
 
 ## Technical Details
 

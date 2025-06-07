@@ -94,14 +94,11 @@ def create_annotated_video(video_path,
                 elif rotation_value == 270:  # 270 degrees clockwise
                     rotation = 90  # We'll rotate counterclockwise, so 90
             except:
-                # If metadata reading fails, use the dimensions-based detection
+                # If metadata reading fails, don't apply any rotation
                 rotation = 0
         
-        # If no rotation metadata or reading failed, use dimensions-based detection
-        if rotation == 0:
-            # Check if video is in portrait mode (height > width)
-            if height > width * 1.2:  # If height is significantly greater than width
-                rotation = 90  # Rotate 90 degrees counterclockwise
+        # Don't apply automatic rotation based on dimensions
+        # Keep the video in its original orientation
         
         # Close the video capture
         cap.release()

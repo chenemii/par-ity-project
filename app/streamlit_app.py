@@ -23,7 +23,7 @@ from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
 from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm, check_llm_services
 from app.utils.visualizer import create_annotated_video
-from app.utils.comparison import create_frame_by_frame_comparison
+from app.utils.comparison import create_key_frame_comparison
 
 # Set page config
 st.set_page_config(page_title="Par-ity Project: Golf Swing Analysis 🏌️‍♀️",
@@ -304,7 +304,7 @@ def main():
             with options_col3:
                 if enable_pro_comparison and st.session_state.pro_reference_path:
                     st.info(
-                        "**Option 3: Compare With Pro**\n\nSee a side-by-side frame-by-frame comparison with a professional golfer's swing."
+                        "**Option 3: Compare With Pro**\n\nSee side-by-side comparisons of 3 key swing positions with a professional golfer, including improvement tips for each phase."
                     )
 
         except Exception as e:
@@ -365,7 +365,7 @@ def main():
         # Add pro comparison button if enabled
         if enable_pro_comparison and st.session_state.pro_reference_path and button_col3:
             with button_col3:
-                comparison_clicked = st.button("Compare With Pro",
+                comparison_clicked = st.button("Compare Key Positions",
                                               key="pro_comparison",
                                               use_container_width=True)
         else:
@@ -480,41 +480,91 @@ def main():
         # Handle pro comparison video creation
         if comparison_clicked and st.session_state.pro_reference_path:
             try:
-                with st.spinner("Creating frame-by-frame comparison..."):
+                with st.spinner("Creating key frame comparison..."):
                     # Get data from session state
                     user_video_path = st.session_state.analysis_data['video_path']
-                    pro_video_path = st.session_state.pro_reference_path
+                    user_swing_phases = st.session_state.analysis_data['swing_phases']
                     
-                    # Create the comparison video
-                    comparison_path = create_frame_by_frame_comparison(
+                    # Create the key frame comparison using static pro reference images
+                    # Don't pass pro_video_path to ensure it uses the static images
+                    comparison_data = create_key_frame_comparison(
                         user_video_path,
-                        pro_video_path
+                        user_swing_phases=user_swing_phases,
+                        use_pro_images=True
                     )
                     
-                    # Verify the file exists
-                    if not os.path.exists(comparison_path):
-                        raise FileNotFoundError(
-                            f"Comparison video file not found at {comparison_path}")
+                    # Store the comparison data in session state
+                    st.session_state.comparison_data = comparison_data
+                
+                # Display success message
+                st.success("Key frame comparison created successfully!")
+                st.subheader("Swing Analysis: Key Position Comparison")
+                
+                # Display each comparison with comments
+                phases = ['setup', 'backswing', 'impact']
+                
+                for phase in phases:
+                    if phase in comparison_data:
+                        data = comparison_data[phase]
+                        
+                        # Display the comparison image
+                        st.subheader(f"{data['title']}")
+                        
+                        # Display the image
+                        if os.path.exists(data['image_path']):
+                            st.image(data['image_path'], use_column_width=True)
+                            
+                            # Create download button for the image
+                            with open(data['image_path'], "rb") as file:
+                                image_bytes = file.read()
+                                st.download_button(
+                                    label=f"Download {data['title']} Comparison",
+                                    data=image_bytes,
+                                    file_name=os.path.basename(data['image_path']),
+                                    mime="image/jpeg",
+                                    key=f"download_{phase}"
+                                )
+                        
+                        # Display improvement comments
+                        comments = data['comments']
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**🏆 Professional Analysis:**")
+                            for analysis in comments['pro_analysis']:
+                                st.markdown(f"• {analysis}")
+                        
+                        with col2:
+                            st.markdown("**🔄 User vs Professional Comparison:**")
+                            for comparison in comments['comparison']:
+                                st.markdown(f"• {comparison}")
+                        
+                        st.markdown("---")  # Add separator between phases
+                
+                # Add general guidance
+                with st.expander("How to Use This Analysis", expanded=False):
+                    st.markdown("""
+                    ### How to Interpret These Comparisons
                     
-                    # Store the comparison video path in session state
-                    st.session_state.comparison_video_path = comparison_path
-                
-                # Display success message and video
-                st.success("Frame-by-frame comparison created successfully!")
-                st.subheader("Side-by-Side Comparison with Pro Golfer")
-                
-                # Display video with larger width
-                display_video(comparison_path, width=800)
-                
-                # Show download button
-                with open(comparison_path, "rb") as file:
-                    video_bytes = file.read()
-                    st.download_button(
-                        label="Download Comparison Video",
-                        data=video_bytes,
-                        file_name=os.path.basename(comparison_path),
-                        mime="video/mp4"
-                    )
+                    Each comparison shows your swing position (left) next to a professional golfer's position (right) at three critical moments:
+                    
+                    1. **Starting Position**: Your setup and address position
+                    2. **Top of Backswing**: The highest point of your backswing
+                    3. **Impact with Ball**: The moment of contact with the ball
+                    
+                    **Tips for Improvement:**
+                    - Compare your body positioning, posture, and club position to the pro
+                    - Focus on one aspect at a time (e.g., posture, then weight distribution)
+                    - Practice the positions slowly without a ball first
+                    - Use a mirror or video recording to check your positions
+                    - Work with a golf instructor for personalized feedback
+                    
+                    **Remember:** Every golfer is different, so focus on the fundamental principles rather than trying to copy every detail exactly.
+                    """)
+            
+            except Exception as e:
+                st.error(f"Error creating key frame comparison: {str(e)}")
                 
                 # Add some guidance for interpreting the comparison
                 with st.expander("How to use this comparison", expanded=True):
@@ -532,9 +582,6 @@ def main():
                     
                     Try pausing the video at key positions to analyze differences in detail.
                     """)
-            
-            except Exception as e:
-                st.error(f"Error creating comparison video: {str(e)}")
 
 
 if __name__ == "__main__":
