@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import base64
 from pathlib import Path
 import shutil
+import cv2
+from PIL import Image
 
 # Load environment variables
 load_dotenv()
@@ -23,7 +25,7 @@ from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
 from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm, check_llm_services
 from app.utils.visualizer import create_annotated_video
-from app.utils.comparison import create_key_frame_comparison
+from app.utils.comparison import create_key_frame_comparison, extract_key_swing_frames
 
 # Set page config
 st.set_page_config(page_title="Par-ity Project: Golf Swing Analysis 🏌️‍♀️",
@@ -302,10 +304,9 @@ def main():
                 )
                 
             with options_col3:
-                if enable_pro_comparison and st.session_state.pro_reference_path:
-                    st.info(
-                        "**Option 3: Compare With Pro**\n\nSee side-by-side comparisons of 3 key swing positions with a professional golfer, including improvement tips for each phase."
-                    )
+                st.info(
+                    "**Option 3: Key Frame Analysis**\n\nExtract and review your setup, top of backswing, and impact frames with helpful comments for each phase."
+                )
 
         except Exception as e:
             st.error(f"Error during analysis: {str(e)}")
@@ -346,11 +347,7 @@ def main():
                         language="text")
 
         # Create columns for the action buttons
-        if enable_pro_comparison and st.session_state.pro_reference_path:
-            button_col1, button_col2, button_col3 = st.columns(3)
-        else:
-            button_col1, button_col2 = st.columns(2)
-            button_col3 = None
+        button_col1, button_col2, button_col3 = st.columns(3)
 
         with button_col1:
             annotated_video_clicked = st.button("Generate Annotated Video",
@@ -362,14 +359,10 @@ def main():
                                              key="gpt_recommendations",
                                              use_container_width=True)
         
-        # Add pro comparison button if enabled
-        if enable_pro_comparison and st.session_state.pro_reference_path and button_col3:
-            with button_col3:
-                comparison_clicked = st.button("Compare Key Positions",
-                                              key="pro_comparison",
-                                              use_container_width=True)
-        else:
-            comparison_clicked = False
+        with button_col3:
+            keyframe_analysis_clicked = st.button("Key Frame Analysis",
+                                                 key="keyframe_analysis",
+                                                 use_container_width=True)
 
         # Handle annotated video creation
         if annotated_video_clicked:
@@ -477,111 +470,93 @@ def main():
                         st.markdown("- Count '1' for your downswing")
                         st.markdown("- Practice maintaining a 3:1 tempo ratio")
         
-        # Handle pro comparison video creation
-        if comparison_clicked and st.session_state.pro_reference_path:
+        # Handle key frame analysis (new tab/option)
+        if keyframe_analysis_clicked:
             try:
-                with st.spinner("Creating key frame comparison..."):
-                    # Get data from session state
+                with st.spinner("Extracting key frames from your swing..."):
                     user_video_path = st.session_state.analysis_data['video_path']
                     user_swing_phases = st.session_state.analysis_data['swing_phases']
-                    
-                    # Create the key frame comparison using static pro reference images
-                    # Don't pass pro_video_path to ensure it uses the static images
-                    comparison_data = create_key_frame_comparison(
-                        user_video_path,
-                        user_swing_phases=user_swing_phases,
-                        use_pro_images=True
-                    )
-                    
-                    # Store the comparison data in session state
-                    st.session_state.comparison_data = comparison_data
-                
-                # Display success message
-                st.success("Key frame comparison created successfully!")
-                st.subheader("Swing Analysis: Key Position Comparison")
-                
-                # Display each comparison with comments
+                    key_frames = extract_key_swing_frames(user_video_path, user_swing_phases)
+
+                st.success("Key frame analysis complete!")
+                st.subheader("Key Frame Analysis: Your Swing's Critical Positions")
+
+                # Define helpful comments for each phase
+                phase_comments = {
+                    'setup': [
+                        "Balanced stance with feet shoulder-width apart.",
+                        "Even weight distribution on both feet.",
+                        "Neutral grip with hands in proper position.",
+                        "Athletic posture with slight forward bend.",
+                        "Ball positioned correctly for club selection."
+                    ],
+                    'backswing': [
+                        "Full shoulder rotation with stable lower body.",
+                        "Club on proper swing plane at top.",
+                        "Consistent spine angle throughout.",
+                        "Minimal weight shift to right side."
+                    ],
+                    'impact': [
+                        "Weight shifted to front foot (70-80%).",
+                        "Hands ahead of ball at impact.",
+                        "Square club face to target line.",
+                        "Head behind ball with steady position.",
+                        "Hips and shoulders aligned to target."
+                    ]
+                }
+                phase_titles = {
+                    'setup': 'Starting Position',
+                    'backswing': 'Top of Backswing',
+                    'impact': 'Impact with Ball'
+                }
                 phases = ['setup', 'backswing', 'impact']
-                
                 for phase in phases:
-                    if phase in comparison_data:
-                        data = comparison_data[phase]
-                        
-                        # Display the comparison image
-                        st.subheader(f"{data['title']}")
-                        
-                        # Display the image
-                        if os.path.exists(data['image_path']):
-                            st.image(data['image_path'], use_column_width=True)
+                    st.subheader(f"{phase_titles[phase]}")
+                    img_col, comment_col = st.columns([1, 1])
+                    with img_col:
+                        if key_frames.get(phase) is not None:
+                            frame = key_frames[phase]
                             
-                            # Create download button for the image
-                            with open(data['image_path'], "rb") as file:
-                                image_bytes = file.read()
-                                st.download_button(
-                                    label=f"Download {data['title']} Comparison",
-                                    data=image_bytes,
-                                    file_name=os.path.basename(data['image_path']),
-                                    mime="image/jpeg",
-                                    key=f"download_{phase}"
-                                )
-                        
-                        # Display improvement comments
-                        comments = data['comments']
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown("**🏆 Professional Analysis:**")
-                            for analysis in comments['pro_analysis']:
-                                st.markdown(f"• {analysis}")
-                        
-                        with col2:
-                            st.markdown("**🔄 User vs Professional Comparison:**")
-                            for comparison in comments['comparison']:
-                                st.markdown(f"• {comparison}")
-                        
-                        st.markdown("---")  # Add separator between phases
-                
-                # Add general guidance
-                with st.expander("How to Use This Analysis", expanded=False):
-                    st.markdown("""
-                    ### How to Interpret These Comparisons
-                    
-                    Each comparison shows your swing position (left) next to a professional golfer's position (right) at three critical moments:
-                    
-                    1. **Starting Position**: Your setup and address position
-                    2. **Top of Backswing**: The highest point of your backswing
-                    3. **Impact with Ball**: The moment of contact with the ball
-                    
-                    **Tips for Improvement:**
-                    - Compare your body positioning, posture, and club position to the pro
-                    - Focus on one aspect at a time (e.g., posture, then weight distribution)
-                    - Practice the positions slowly without a ball first
-                    - Use a mirror or video recording to check your positions
-                    - Work with a golf instructor for personalized feedback
-                    
-                    **Remember:** Every golfer is different, so focus on the fundamental principles rather than trying to copy every detail exactly.
-                    """)
-            
+                            # Verify frame is in color before conversion
+                            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                                try:
+                                    # Save frame to temp file for display
+                                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                                    
+                                    # Convert BGR (OpenCV) to RGB (PIL) format
+                                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                                    
+                                    # Debug: Log frame dimensions after extraction and color conversion
+                                    height, width = rgb_frame.shape[:2]
+                                    print(f"Frame dimensions for {phase}: {width}x{height}")
+                                    
+                                    pil_img = Image.fromarray(rgb_frame)
+                                    pil_img.save(temp_file.name, format="JPEG", quality=95)
+                                    
+                                    # Display the image
+                                    st.image(temp_file.name, use_container_width=True)
+                                    
+                                    # Clean up temp file
+                                    try:
+                                        os.unlink(temp_file.name)
+                                    except:
+                                        pass  # Ignore cleanup errors
+                                        
+                                except Exception as e:
+                                    st.error(f"Error displaying {phase} frame: {str(e)}")
+                                    st.warning("Frame could not be displayed properly.")
+                            else:
+                                st.warning(f"Frame for {phase} is not in color format. Shape: {frame.shape}")
+                        else:
+                            st.warning("Frame not found.")
+                    with comment_col:
+                        st.markdown("**Comments:**")
+                        for comment in phase_comments[phase]:
+                            st.markdown(f"- {comment}")
+                    st.markdown("---")
             except Exception as e:
-                st.error(f"Error creating key frame comparison: {str(e)}")
-                
-                # Add some guidance for interpreting the comparison
-                with st.expander("How to use this comparison", expanded=True):
-                    st.markdown("""
-                    ### How to Interpret This Comparison
-                    
-                    This side-by-side comparison allows you to see how your swing compares to a professional golfer's swing frame by frame. Look for these key differences:
-                    
-                    1. **Posture and Setup**: Compare your stance, grip, and alignment at address
-                    2. **Backswing Rotation**: Note how much shoulder and hip rotation occurs
-                    3. **Top of Swing Position**: Observe club position and body alignment
-                    4. **Downswing Sequence**: Watch how the pro initiates the downswing
-                    5. **Impact Position**: Compare body positioning at impact
-                    6. **Follow-through**: Note how weight transfers and body rotates after impact
-                    
-                    Try pausing the video at key positions to analyze differences in detail.
-                    """)
+                st.error(f"Error during key frame analysis: {str(e)}")
+                st.info("Please ensure your video is in a supported format and try again.")
 
 
 if __name__ == "__main__":

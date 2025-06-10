@@ -1,11 +1,65 @@
 """
 Comparison module for frame-by-frame analysis between user and pro swings
+
+CRITICAL NOTE: This module preserves the original sizes and orientations of both user and professional videos.
+Frames are saved as separate image files at their original resolutions without any resizing, rotation, or distortion.
 """
 
 import os
 import cv2
 import numpy as np
 from tqdm import tqdm
+from PIL import Image
+
+
+def ensure_color_frame(frame):
+    """
+    Ensure frame is in color format (3 channels)
+    
+    Args:
+        frame (numpy.ndarray): Input frame
+        
+    Returns:
+        numpy.ndarray: Color frame with 3 channels
+    """
+    if frame is None:
+        return np.zeros((480, 640, 3), dtype=np.uint8)
+    
+    # If frame is grayscale (2D), convert to color (3D)
+    if len(frame.shape) == 2:
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    elif len(frame.shape) == 3 and frame.shape[2] == 1:
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    elif len(frame.shape) == 3 and frame.shape[2] == 4:
+        # Convert RGBA to BGR
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+    
+    return frame
+
+
+def resize_frame_proportionally(frame, target_height):
+    """
+    Resize frame proportionally to target height while maintaining aspect ratio
+    
+    Args:
+        frame (numpy.ndarray): Input frame
+        target_height (int): Target height
+        
+    Returns:
+        numpy.ndarray: Resized frame
+    """
+    # Ensure frame is in color format
+    frame = ensure_color_frame(frame)
+    
+    h, w = frame.shape[:2]
+    if h == 0:
+        return np.zeros((target_height, target_height, 3), dtype=np.uint8)
+    
+    # Calculate new width to maintain aspect ratio
+    target_width = int(w * (target_height / h))
+    
+    # Resize the frame
+    return cv2.resize(frame, (target_width, target_height))
 
 
 def extract_frames(video_path, max_frames=100):
@@ -24,10 +78,21 @@ def extract_frames(video_path, max_frames=100):
     if not os.path.exists(video_path):
         raise ValueError(f"Video file not found: {video_path}")
         
+    # Use standard OpenCV VideoCapture with explicit settings to prevent any rotation
     cap = cv2.VideoCapture(video_path)
     
     if not cap.isOpened():
         raise ValueError(f"Could not open video: {video_path}")
+    
+    # CRITICAL: Explicitly disable ALL automatic transformations
+    # This prevents OpenCV from applying any rotation based on metadata
+    try:
+        cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 0)  # Disable auto-orientation
+        cap.set(cv2.CAP_PROP_ORIENTATION_META, 0)  # Ignore orientation metadata
+        cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)       # Keep BGR format
+    except:
+        # If properties are not supported, continue without them
+        pass
     
     # Get total frame count
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -43,7 +108,10 @@ def extract_frames(video_path, max_frames=100):
             break
             
         if current_frame % step == 0:
-            frames.append(frame)
+            # Store frame exactly as read from video - no transformations at all
+            # Only verify it's a valid color frame before storing
+            if frame is not None and len(frame.shape) == 3:
+                frames.append(frame.copy())
             
         current_frame += 1
         
@@ -59,56 +127,126 @@ def extract_key_swing_frames(video_path, swing_phases=None):
     2. Top of backswing
     3. Impact with ball
     
-    Args:
-        video_path (str): Path to the video file
-        swing_phases (dict): Optional swing phase data for precise frame selection
-        
-    Returns:
-        dict: Dictionary with keys 'setup', 'backswing', 'impact' 
-              and frame images as values
+    Simplified version that uses basic OpenCV and handles rotation properly.
     """
     if not os.path.exists(video_path):
         raise ValueError(f"Video file not found: {video_path}")
-        
+    
+    print(f"Extracting key frames from: {video_path}")
+    
+    # Use basic OpenCV VideoCapture
     cap = cv2.VideoCapture(video_path)
     
     if not cap.isOpened():
         raise ValueError(f"Could not open video: {video_path}")
     
-    # Get total frame count
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    key_frames = {}
-    
-    if swing_phases:
-        # Use provided swing phase data for precise frame selection
-        frame_indices = {
-            'setup': swing_phases.get('setup', [0])[0] if swing_phases.get('setup') else 0,
-            'backswing': swing_phases.get('backswing', [total_frames//3])[-1] if swing_phases.get('backswing') else total_frames//3,
-            'impact': swing_phases.get('impact', [total_frames//2])[len(swing_phases.get('impact', [total_frames//2]))//2] if swing_phases.get('impact') else total_frames//2
-        }
-    else:
-        # Use estimated frame positions for 3 frames
-        frame_indices = {
-            'setup': 0,  # First frame
-            'backswing': total_frames // 3,  # 33% through
-            'impact': int(total_frames * 0.6)  # 60% through
-        }
-    
-    # Extract the specific frames
-    for phase, frame_idx in frame_indices.items():
-        cap.set(cv2.CAP_PROP_POS_FRAMES, min(frame_idx, total_frames - 1))
-        ret, frame = cap.read()
-        if ret:
-            # Keep original orientation - no rotation
-            key_frames[phase] = frame
+    try:
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames <= 0:
+            raise ValueError(f"Invalid video: no frames found in {video_path}")
+        
+        print(f"Total frames in video: {total_frames}")
+        
+        # Check for rotation metadata
+        rotation_angle = 0
+        try:
+            # Try to get orientation metadata if available
+            orientation = cap.get(cv2.CAP_PROP_ORIENTATION_META)
+            if orientation == 90:
+                rotation_angle = 270  # Rotate counterclockwise
+            elif orientation == 180:
+                rotation_angle = 180
+            elif orientation == 270:
+                rotation_angle = 90   # Rotate counterclockwise
+            print(f"Video orientation metadata: {orientation}, applying rotation: {rotation_angle}")
+        except:
+            print("No orientation metadata available")
+        
+        key_frames = {}
+        
+        # Determine frame indices
+        if swing_phases:
+            setup_idx = 0  # Always start from beginning
+            backswing_idx = swing_phases.get('backswing', [total_frames//3])[-1] if swing_phases.get('backswing') else total_frames//3
+            impact_idx = swing_phases.get('impact', [total_frames//2])[len(swing_phases.get('impact', [total_frames//2]))//2] if swing_phases.get('impact') else total_frames//2
         else:
-            # If frame extraction fails, use a black frame
-            key_frames[phase] = np.zeros((480, 640, 3), dtype=np.uint8)
+            setup_idx = 0
+            backswing_idx = total_frames // 3
+            impact_idx = int(total_frames * 0.6)
+        
+        print(f"Frame indices - Setup: {setup_idx}, Backswing: {backswing_idx}, Impact: {impact_idx}")
+        
+        # Extract frames for each phase
+        phases = [
+            ('setup', setup_idx),
+            ('backswing', backswing_idx),
+            ('impact', impact_idx)
+        ]
+        
+        for phase_name, frame_idx in phases:
+            frame = _extract_single_frame(cap, frame_idx, total_frames, rotation_angle, phase_name)
+            if frame is not None:
+                key_frames[phase_name] = frame
+                print(f"Successfully extracted {phase_name} frame")
+            else:
+                print(f"Failed to extract {phase_name} frame")
+        
+        return key_frames
+        
+    except Exception as e:
+        raise ValueError(f"Error extracting frames from {video_path}: {str(e)}")
+    finally:
+        cap.release()
+
+
+def _extract_single_frame(cap, target_idx, total_frames, rotation_angle, phase_name):
+    """
+    Extract a single frame from video with validation and rotation correction
+    """
+    # Try the target frame first
+    for attempt_idx in [target_idx, target_idx + 1, target_idx - 1, target_idx + 2, target_idx - 2]:
+        if attempt_idx < 0 or attempt_idx >= total_frames:
+            continue
+            
+        cap.set(cv2.CAP_PROP_POS_FRAMES, attempt_idx)
+        ret, frame = cap.read()
+        
+        if not ret or frame is None:
+            print(f"Failed to read frame at index {attempt_idx} for {phase_name}")
+            continue
+        
+        # Validate frame has 3 channels (color)
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            print(f"Frame at index {attempt_idx} for {phase_name} is not in color format: {frame.shape}")
+            continue
+        
+        print(f"Successfully read frame at index {attempt_idx} for {phase_name}, shape: {frame.shape}")
+        
+        # Apply rotation correction if needed
+        if rotation_angle != 0:
+            print(f"Before rotation: {frame.shape}")
+            frame = _apply_rotation(frame, rotation_angle)
+            print(f"After {rotation_angle}° rotation: {frame.shape}")
+            print(f"Applied {rotation_angle}° rotation to {phase_name} frame")
+        
+        return frame.copy()
     
-    cap.release()
-    
-    return key_frames
+    print(f"Could not extract valid frame for {phase_name} after trying multiple indices")
+    return None
+
+
+def _apply_rotation(frame, rotation_angle):
+    """
+    Apply rotation to a frame based on angle
+    """
+    if rotation_angle == 90:
+        return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    elif rotation_angle == 180:
+        return cv2.rotate(frame, cv2.ROTATE_180)
+    elif rotation_angle == 270:
+        return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    else:
+        return frame
 
 
 def generate_improvement_comments(phase):
@@ -206,6 +344,8 @@ def load_pro_reference_images(pro_images_dir="pro_reference"):
         if os.path.exists(image_path):
             image = cv2.imread(image_path)
             if image is not None:
+                # Ensure the image is in color format
+                image = ensure_color_frame(image)
                 pro_frames[phase] = image
             else:
                 # Create a placeholder if image can't be loaded
@@ -217,20 +357,65 @@ def load_pro_reference_images(pro_images_dir="pro_reference"):
     return pro_frames
 
 
+def save_frame_with_orientation(frame, output_path):
+    """
+    Save a frame using PIL after converting from BGR to RGB.
+    Ensures proper color handling and orientation.
+    
+    Args:
+        frame (numpy.ndarray): Frame in BGR format (OpenCV)
+        output_path (str): Path to save the image
+    """
+    try:
+        if frame is None or frame.size == 0:
+            # Save a black image if frame is invalid
+            black = np.zeros((480, 640, 3), dtype=np.uint8)
+            img = Image.fromarray(black)
+            img.save(output_path, format="JPEG", quality=95)
+            return
+        
+        # Verify frame is in color (3 channels)
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            raise ValueError(f"Frame is not in color format. Shape: {frame.shape}")
+        
+        # Convert BGR (OpenCV) to RGB (PIL)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Create PIL image and save with high quality
+        img = Image.fromarray(rgb_frame)
+        img.save(output_path, format="JPEG", quality=95)
+        
+    except Exception as e:
+        print(f"Warning: Error saving frame to {output_path}: {str(e)}")
+        # Create a fallback black image
+        try:
+            black = np.zeros((480, 640, 3), dtype=np.uint8)
+            img = Image.fromarray(black)
+            img.save(output_path, format="JPEG", quality=95)
+        except Exception as fallback_error:
+            print(f"Error: Could not save fallback image: {str(fallback_error)}")
+            raise
+
+
 def create_key_frame_comparison(user_video_path, pro_video_path=None, user_swing_phases=None, pro_swing_phases=None, output_dir="downloads", use_pro_images=True):
     """
-    Create a comparison of 3 key frames between user and pro golfer swings
+    Create separate images for 3 key frames from user and pro golfer swings
+    
+    IMPORTANT: This function preserves the original sizes of both user and professional frames.
+    No resizing, rotation, or distortion is applied to either frame. Each frame is saved
+    as a separate image file at its original resolution.
     
     Args:
         user_video_path (str): Path to the user's golf swing video
         pro_video_path (str): Path to the professional golfer's swing video (optional if use_pro_images=True)
         user_swing_phases (dict): Optional swing phase data for user video
         pro_swing_phases (dict): Optional swing phase data for pro video
-        output_dir (str): Directory to save the comparison images
+        output_dir (str): Directory to save the separate images
         use_pro_images (bool): Whether to use provided pro reference images instead of video
         
     Returns:
-        dict: Dictionary with phase names as keys and image paths as values
+        dict: Dictionary with phase names as keys and dictionaries containing 
+              'user_image_path', 'pro_image_path', 'title', and 'comments' as values
     """
     # Extract key frames from user video
     user_frames = extract_key_swing_frames(user_video_path, user_swing_phases)
@@ -254,98 +439,45 @@ def create_key_frame_comparison(user_video_path, pro_video_path=None, user_swing
         user_frame = user_frames.get(phase, np.zeros((480, 640, 3), dtype=np.uint8))
         pro_frame = pro_frames.get(phase, np.zeros((480, 640, 3), dtype=np.uint8))
         
-        # Resize frames to consistent size while maintaining portrait orientation
-        target_height = 400
-        user_frame = resize_frame_maintain_aspect(user_frame, target_height)
-        pro_frame = resize_frame_maintain_aspect(pro_frame, target_height)
+        # CRITICAL: Keep user frame EXACTLY as extracted - no processing at all
+        # Only ensure pro frame is in color format since it comes from reference images
+        pro_frame = ensure_color_frame(pro_frame)
         
-        # Create side-by-side comparison
-        comparison_image = create_side_by_side_image(user_frame, pro_frame, phase_titles[i])
-        
-        # Save the comparison image with absolute path
+        # Save user frame with original size using PIL to ensure correct orientation and color
         video_name = os.path.splitext(os.path.basename(user_video_path))[0]
-        output_path = os.path.join(output_dir, f"{video_name}_{phase}_comparison.jpg")
+        user_output_path = os.path.join(output_dir, f"{video_name}_{phase}_user.jpg")
+        pro_output_path = os.path.join(output_dir, f"{video_name}_{phase}_pro.jpg")
         
-        # Ensure the image is saved successfully
-        success = cv2.imwrite(output_path, comparison_image)
-        if not success:
-            print(f"Warning: Failed to save image to {output_path}")
-        else:
-            print(f"Successfully saved comparison image: {output_path}")
+        # Save user image using PIL (handles BGR->RGB and orientation)
+        try:
+            save_frame_with_orientation(user_frame, user_output_path)
+            user_success = True
+        except Exception as e:
+            print(f"Warning: Failed to save user image to {user_output_path}: {e}")
+            user_success = False
+        # Save pro image using OpenCV (as before)
+        pro_success = cv2.imwrite(pro_output_path, pro_frame)
+        
+        if user_success:
+            print(f"Successfully saved user image: {user_output_path}")
+        if not user_success:
+            print(f"Warning: Failed to save user image to {user_output_path}")
+        if pro_success:
+            print(f"Successfully saved pro image: {pro_output_path}")
+        if not pro_success:
+            print(f"Warning: Failed to save pro image to {pro_output_path}")
         
         # Get improvement comments
         comments = generate_improvement_comments(phase)
         
         comparison_data[phase] = {
-            'image_path': output_path,
+            'user_image_path': user_output_path,
+            'pro_image_path': pro_output_path,
             'title': phase_titles[i],
             'comments': comments
         }
     
     return comparison_data
-
-
-def resize_frame_maintain_aspect(frame, target_height):
-    """
-    Resize frame to target height while maintaining aspect ratio
-    
-    Args:
-        frame (numpy.ndarray): Input frame
-        target_height (int): Target height
-        
-    Returns:
-        numpy.ndarray: Resized frame
-    """
-    h, w = frame.shape[:2]
-    target_width = int(w * (target_height / h))
-    return cv2.resize(frame, (target_width, target_height))
-
-
-def create_side_by_side_image(user_frame, pro_frame, title):
-    """
-    Create a side-by-side comparison image
-    
-    Args:
-        user_frame (numpy.ndarray): User's swing frame
-        pro_frame (numpy.ndarray): Pro's swing frame
-        title (str): Title for the comparison
-        
-    Returns:
-        numpy.ndarray: Combined comparison image
-    """
-    # Get dimensions
-    user_h, user_w = user_frame.shape[:2]
-    pro_h, pro_w = pro_frame.shape[:2]
-    
-    # Create padding and title space
-    padding = 20
-    title_height = 60
-    max_height = max(user_h, pro_h)
-    total_width = user_w + pro_w + padding
-    total_height = max_height + title_height
-    
-    # Create blank canvas
-    canvas = np.ones((total_height, total_width, 3), dtype=np.uint8) * 255
-    
-    # Add title
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    title_size = cv2.getTextSize(title, font, 1.2, 2)[0]
-    title_x = (total_width - title_size[0]) // 2
-    cv2.putText(canvas, title, (title_x, 40), font, 1.2, (0, 0, 0), 2)
-    
-    # Add user frame
-    y_offset = title_height + (max_height - user_h) // 2
-    canvas[y_offset:y_offset + user_h, 0:user_w] = user_frame
-    
-    # Add pro frame
-    y_offset = title_height + (max_height - pro_h) // 2
-    canvas[y_offset:y_offset + pro_h, user_w + padding:user_w + padding + pro_w] = pro_frame
-    
-    # Draw vertical separator line
-    line_x = user_w + padding // 2
-    cv2.line(canvas, (line_x, title_height), (line_x, total_height), (200, 200, 200), 2)
-    
-    return canvas
 
 
 def normalize_frames(frames, target_height=480):
@@ -362,14 +494,8 @@ def normalize_frames(frames, target_height=480):
     normalized_frames = []
     
     for frame in frames:
-        # Get current dimensions
-        h, w = frame.shape[:2]
-        
-        # Calculate new width to maintain aspect ratio
-        target_width = int(w * (target_height / h))
-        
-        # Resize the frame
-        resized = cv2.resize(frame, (target_width, target_height))
+        # Use the color-safe resize function
+        resized = resize_frame_proportionally(frame, target_height)
         normalized_frames.append(resized)
         
     return normalized_frames
@@ -391,25 +517,43 @@ def create_side_by_side_comparison(user_frames, pro_frames, output_path, fps=30)
     if not user_frames or not pro_frames:
         raise ValueError("Both user and pro frames must be provided")
         
-    # Normalize frames to same height
-    user_normalized = normalize_frames(user_frames)
-    pro_normalized = normalize_frames(pro_frames)
+    # Ensure all frames are in color format
+    user_frames = [ensure_color_frame(frame) for frame in user_frames]
+    pro_frames = [ensure_color_frame(frame) for frame in pro_frames]
+    
+    # Get dimensions from first frames
+    user_h, user_w = user_frames[0].shape[:2]
+    pro_h, pro_w = pro_frames[0].shape[:2]
+    
+    # Choose target height (smaller of the two, capped at 720p)
+    target_height = min(user_h, pro_h, 720)
+    
+    # Resize both user and pro frames proportionally to the same height
+    user_resized = []
+    for frame in user_frames:
+        resized = resize_frame_proportionally(frame, target_height)
+        user_resized.append(resized)
+    
+    pro_resized = []
+    for frame in pro_frames:
+        resized = resize_frame_proportionally(frame, target_height)
+        pro_resized.append(resized)
     
     # Ensure we have the same number of frames by duplicating the last frame if needed
-    max_frames = max(len(user_normalized), len(pro_normalized))
+    max_frames = max(len(user_resized), len(pro_resized))
     
-    while len(user_normalized) < max_frames:
-        user_normalized.append(user_normalized[-1])
+    user_aligned = user_resized.copy()
+    while len(user_aligned) < max_frames:
+        user_aligned.append(user_aligned[-1])
         
-    while len(pro_normalized) < max_frames:
-        pro_normalized.append(pro_normalized[-1])
+    while len(pro_resized) < max_frames:
+        pro_resized.append(pro_resized[-1])
     
     # Create output directory if it doesn't exist
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     
-    # Get dimensions for the combined frame
-    user_h, user_w = user_normalized[0].shape[:2]
-    pro_h, pro_w = pro_normalized[0].shape[:2]
+    # Get dimensions for the combined frame using original user frame dimensions
+    pro_h, pro_w = pro_resized[0].shape[:2]
     
     # Create a combined frame with padding
     padding = 20  # Pixels between the two videos
@@ -424,7 +568,7 @@ def create_side_by_side_comparison(user_frames, pro_frames, output_path, fps=30)
         raise IOError(f"Failed to create video writer for {output_path}")
     
     # Create the combined video
-    for i in tqdm(range(min(len(user_normalized), len(pro_normalized))), desc="Creating comparison video"):
+    for i in tqdm(range(min(len(user_aligned), len(pro_resized))), desc="Creating comparison video"):
         # Create a blank canvas
         combined = np.ones((combined_height, combined_width, 3), dtype=np.uint8) * 255
         
@@ -434,14 +578,16 @@ def create_side_by_side_comparison(user_frames, pro_frames, output_path, fps=30)
         cv2.putText(combined, "Pro Swing", (user_w + padding + pro_w//2 - 60, 30), font, 1, (0, 0, 0), 2)
         
         # Add frame number
-        cv2.putText(combined, f"Frame: {i+1}/{min(len(user_normalized), len(pro_normalized))}", 
+        cv2.putText(combined, f"Frame: {i+1}/{min(len(user_aligned), len(pro_resized))}", 
                    (10, combined_height - 10), font, 0.5, (0, 0, 0), 1)
         
-        # Paste user frame
-        combined[0:user_h, 0:user_w] = user_normalized[i]
+        # Paste user frame at original size and orientation
+        y_offset_user = (combined_height - user_h) // 2
+        combined[y_offset_user:y_offset_user + user_h, 0:user_w] = user_aligned[i]
         
         # Paste pro frame
-        combined[0:pro_h, user_w+padding:user_w+padding+pro_w] = pro_normalized[i]
+        y_offset_pro = (combined_height - pro_h) // 2
+        combined[y_offset_pro:y_offset_pro + pro_h, user_w + padding:user_w + padding + pro_w] = pro_resized[i]
         
         # Draw vertical line between frames
         cv2.line(combined, (user_w + padding//2, 0), (user_w + padding//2, combined_height), (0, 0, 0), 2)
