@@ -123,11 +123,16 @@ def extract_frames(video_path, max_frames=100):
 def extract_key_swing_frames(video_path, swing_phases=None):
     """
     Extract 3 key frames from a golf swing video:
-    1. Starting position (setup)
-    2. Top of backswing
-    3. Impact with ball
+    1. First setup frame
+    2. Last backswing frame (top of backswing)
+    3. First impact frame
     
-    Simplified version that uses basic OpenCV and handles rotation properly.
+    Args:
+        video_path (str): Path to the video file
+        swing_phases (dict): Dictionary mapping phase names to lists of frame indices
+        
+    Returns:
+        dict: Dictionary mapping phase names to frames
     """
     if not os.path.exists(video_path):
         raise ValueError(f"Video file not found: {video_path}")
@@ -164,12 +169,21 @@ def extract_key_swing_frames(video_path, swing_phases=None):
         
         key_frames = {}
         
-        # Determine frame indices
+        # Determine frame indices based on swing phases
         if swing_phases:
-            setup_idx = 0  # Always start from beginning
-            backswing_idx = swing_phases.get('backswing', [total_frames//3])[-1] if swing_phases.get('backswing') else total_frames//3
-            impact_idx = swing_phases.get('impact', [total_frames//2])[len(swing_phases.get('impact', [total_frames//2]))//2] if swing_phases.get('impact') else total_frames//2
+            # Get first setup frame
+            setup_frames = swing_phases.get('setup', [])
+            setup_idx = setup_frames[0] if setup_frames else 0
+            
+            # Get last backswing frame (top of backswing)
+            backswing_frames = swing_phases.get('backswing', [])
+            backswing_idx = backswing_frames[-1] if backswing_frames else total_frames//3
+            
+            # Get first impact frame
+            impact_frames = swing_phases.get('impact', [])
+            impact_idx = impact_frames[0] if impact_frames else total_frames//2
         else:
+            # Fallback to default indices if no swing phases provided
             setup_idx = 0
             backswing_idx = total_frames // 3
             impact_idx = int(total_frames * 0.6)

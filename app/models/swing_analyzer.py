@@ -3,187 +3,142 @@ Swing analysis module for golf swing segmentation and trajectory analysis
 """
 
 import numpy as np
-import cv2
 from app.models.pose_estimator import calculate_joint_angles
 
-
-def segment_swing(pose_data, detections, sample_rate=5):
-    """
-    Segment the golf swing into key phases
-    
-    Args:
-        pose_data (dict): Dictionary mapping frame indices to pose keypoints
-        detections (list): List of Detection objects
-        sample_rate (int): The frame sampling rate used during processing
-        
-    Returns:
-        dict: Dictionary mapping phase names to lists of frame indices
-    """
-    # Initialize swing phases
-    swing_phases = {
-        "setup": [],
-        "backswing": [],
-        "downswing": [],
-        "impact": [],
-        "follow_through": []
-    }
-
-    # Get frame indices with pose data
+def segment_swing(pose_data, detections, sample_rate=1):
+    swing_phases = {"setup": [], "backswing": [], "downswing": [], "impact": [], "follow_through": []}
     frame_indices = sorted(pose_data.keys())
-
     if not frame_indices:
         return swing_phases
-        
-    # Auto-adjust sample rate based on number of frames
-    # For short videos (less than 150 frames), don't skip any frames
-    if len(frame_indices) < 150 and sample_rate > 1:
-        # Get the max frame idx to understand video length
-        max_frame_idx = max(frame_indices) if frame_indices else 0
-        # For videos with less than 150 frames, use sample_rate=1
-        if max_frame_idx < 150:
-            sample_rate = 1
 
-    # Calculate joint angles for each frame
     angles_by_frame = {}
     for idx in frame_indices:
         keypoints = pose_data[idx]
         angles = calculate_joint_angles(keypoints)
         angles_by_frame[idx] = angles
 
-    # Analyze shoulder rotation to identify swing phases
-    # This is a simplified approach - a more sophisticated algorithm would be needed for production
+    setup_end = frame_indices[0]
+    initial_angles = angles_by_frame[frame_indices[0]]
+    initial_shoulder = initial_angles.get("right_shoulder")
+    initial_wrist = initial_angles.get("right_elbow")
 
-    # Find the frame with the maximum right shoulder angle (top of backswing)
-    max_shoulder_angle = -1
-    top_backswing_frame = frame_indices[0]
-
-    for idx in frame_indices:
+    for idx in frame_indices[1:]:
         angles = angles_by_frame[idx]
-        if "right_shoulder" in angles and angles[
-                "right_shoulder"] > max_shoulder_angle:
-            max_shoulder_angle = angles["right_shoulder"]
+        shoulder = angles.get("right_shoulder")
+        wrist = angles.get("right_elbow")
+        if shoulder and initial_shoulder and abs(shoulder - initial_shoulder) > 10:
+            setup_end = idx
+            break
+        if wrist and initial_wrist and abs(wrist - initial_wrist) > 10:
+            setup_end = idx
+            break
+
+    max_shoulder_angle = -1
+    top_backswing_frame = setup_end
+    for idx in frame_indices:
+        if idx < setup_end:
+            continue
+        shoulder = angles_by_frame[idx].get("right_shoulder")
+        if shoulder and shoulder > max_shoulder_angle:
+            max_shoulder_angle = shoulder
             top_backswing_frame = idx
 
-    # Find impact frame (when club meets ball)
-    # In a real implementation, this would use club and ball detection
+    # Find impact frame by looking for the point where the club head is at its lowest point
+    # during the downswing, before it starts rising in the follow-through
     impact_frame = None
-    person_positions = {}
-
-    # Extract person positions from detections
-    for detection in detections:
-        if detection.class_name == "person":
-            frame_idx = detection.frame_idx // sample_rate  # Convert to processed frame index
-            if frame_idx in frame_indices:
-                person_positions[frame_idx] = detection.bbox
-
-    # Find the frame with the most forward position (impact)
-    if person_positions:
-        min_x = float('inf')
-        for idx, bbox in person_positions.items():
-            if idx > top_backswing_frame and bbox[0] < min_x:
-                min_x = bbox[0]
+    min_wrist_y = float('inf')
+    prev_wrist_y = None
+    wrist_velocities = []
+    
+    # First pass: collect wrist positions and calculate velocities
+    wrist_positions = []
+    for idx in frame_indices:
+        if idx < top_backswing_frame:
+            continue
+        keypoints = pose_data[idx]
+        if len(keypoints) > 16:
+            wrist_y = keypoints[16][1]
+            wrist_positions.append((idx, wrist_y))
+    
+    # Calculate velocities between consecutive frames
+    for i in range(1, len(wrist_positions)):
+        idx, wrist_y = wrist_positions[i]
+        prev_idx, prev_y = wrist_positions[i-1]
+        velocity = (wrist_y - prev_y) / (idx - prev_idx)
+        wrist_velocities.append((idx, velocity))
+    
+    # Find impact as the point where velocity changes from negative (downward) to positive (upward)
+    for i in range(1, len(wrist_velocities)):
+        idx, velocity = wrist_velocities[i]
+        prev_idx, prev_velocity = wrist_velocities[i-1]
+        if prev_velocity < 0 and velocity > 0:  # Velocity changes from negative to positive
+            impact_frame = prev_idx
+            break
+    
+    # If no clear impact point found, use the frame with minimum wrist Y position
+    if impact_frame is None:
+        for idx, wrist_y in wrist_positions:
+            if wrist_y < min_wrist_y:
+                min_wrist_y = wrist_y
                 impact_frame = idx
 
-    # If impact frame not found, estimate it as 2/3 between top of backswing and end
     if impact_frame is None:
-        impact_frame = frame_indices[0] + int(
-            (frame_indices[-1] - top_backswing_frame) * 2 / 3)
+        impact_frame = frame_indices[-1]
 
-    # Assign frames to phases
     for idx in frame_indices:
-        if idx < frame_indices[len(frame_indices) // 5]:
-            # First 20% of frames are setup
+        if idx <= setup_end:
             swing_phases["setup"].append(idx)
-        elif idx < top_backswing_frame:
-            # Frames before top of backswing are backswing
+        elif idx <= top_backswing_frame:
             swing_phases["backswing"].append(idx)
         elif idx < impact_frame:
-            # Frames between top of backswing and impact are downswing
             swing_phases["downswing"].append(idx)
-        elif idx < impact_frame + 5:
-            # Frames around impact
+        elif idx == impact_frame:
             swing_phases["impact"].append(idx)
         else:
-            # Remaining frames are follow-through
             swing_phases["follow_through"].append(idx)
 
     return swing_phases
 
-
-def analyze_trajectory(frames, detections, swing_phases, sample_rate=5):
-    """
-    Analyze club and ball trajectory and speed
-    
-    Args:
-        frames (list): List of video frames
-        detections (list): List of Detection objects
-        swing_phases (dict): Dictionary mapping phase names to lists of frame indices
-        sample_rate (int): The frame sampling rate used during processing
-        
-    Returns:
-        dict: Dictionary mapping frame indices to trajectory data
-    """
+def analyze_trajectory(frames, detections, swing_phases, sample_rate=1):
     trajectory_data = {}
-    
-    # Auto-adjust sample rate based on number of frames
-    # For short videos (less than 150 frames), don't skip any frames
-    if len(frames) < 150 and sample_rate > 1:
+    if len(frames) < 150:
         sample_rate = 1
 
-    # Extract ball detections
     ball_detections = [d for d in detections if d.class_name == "sports ball"]
-
-    # Get impact frame index
     impact_frames = swing_phases.get("impact", [])
     if not impact_frames:
         return trajectory_data
 
     impact_frame_idx = impact_frames[len(impact_frames) // 2]
-
-    # Track ball trajectory after impact
     ball_trajectory = []
     ball_positions = {}
 
     for detection in ball_detections:
-        frame_idx = detection.frame_idx // sample_rate  # Convert to processed frame index
+        frame_idx = detection.frame_idx
         if frame_idx >= impact_frame_idx:
-            # Calculate ball center
             x1, y1, x2, y2 = detection.bbox
             center_x = (x1 + x2) / 2
             center_y = (y1 + y2) / 2
             ball_positions[frame_idx] = (center_x, center_y)
 
-    # Sort ball positions by frame index
     sorted_frames = sorted(ball_positions.keys())
     for idx in sorted_frames:
         ball_trajectory.append(ball_positions[idx])
 
-    # Estimate club speed at impact
-    # In a real implementation, this would use more sophisticated tracking
     club_speed = None
-    if len(swing_phases.get("downswing", [])) >= 2:
-        # Simplified club speed calculation
-        # In reality, this would require tracking the club head specifically
-        downswing_frames = swing_phases["downswing"]
-        # Account for sample rate when calculating time difference
-        actual_frames_elapsed = (downswing_frames[-1] - downswing_frames[0]) * sample_rate
-        time_diff = actual_frames_elapsed / 30  # Assuming 30 fps
+    downswing_frames = swing_phases.get("downswing", [])
+    if len(downswing_frames) >= 2:
+        actual_frames_elapsed = (downswing_frames[-1] - downswing_frames[0])
+        time_diff = actual_frames_elapsed / 30
         if time_diff > 0:
-            # Simplified speed calculation (just an example)
-            club_speed = 100 * (1 / time_diff)  # Arbitrary scaling
+            club_speed = 100 * (1 / time_diff)
 
-    # Populate trajectory data
-    for idx in sorted(swing_phases.keys()):
-        frames_in_phase = swing_phases[idx]
+    for phase_name, frames_in_phase in swing_phases.items():
         for frame_idx in frames_in_phase:
             trajectory_data[frame_idx] = {
-                "phase":
-                idx,
-                "club_speed":
-                club_speed if idx == "impact" else None,
-                "ball_trajectory":
-                ball_trajectory
-                if idx == "impact" or idx == "follow_through" else None
+                "phase": phase_name,
+                "club_speed": club_speed if phase_name == "impact" else None,
+                "ball_trajectory": ball_trajectory if phase_name in ["impact", "follow_through"] else None
             }
 
     return trajectory_data

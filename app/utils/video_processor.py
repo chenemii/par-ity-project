@@ -32,40 +32,28 @@ def process_video(video_path, sample_rate=5):
             - frames: List of processed frames
             - detections: List of Detection objects
     """
-    # Load YOLOv8 model
     model = YOLO("yolov8n.pt")
-
-    # Custom class names for golf-specific objects
     class_names = model.names
 
-    # Open video file
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise ValueError("Error opening video file")
 
-    # Get video properties
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    
-    # Auto-adjust sample rate based on video length
-    # For short videos (less than 150 frames), don't skip any frames
-    if frame_count < 150 and sample_rate > 1:
+
+    if frame_count < 150:
         print(f"Short video detected ({frame_count} frames). Processing all frames.")
         sample_rate = 1
 
     frames = []
     detections = []
 
-    # Process frames
-    for frame_idx in tqdm(range(0, frame_count, sample_rate),
-                          desc="Processing frames"):
-        # Set frame position
+    for frame_idx in tqdm(range(0, frame_count, sample_rate), desc="Processing frames"):
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-
-        # Read frame
         ret, frame = cap.read()
         if not ret:
-            break
+            print(f"Warning: Could not read frame {frame_idx}")
+            continue
 
         # Store original frame
         frames.append(frame)
@@ -77,21 +65,11 @@ def process_video(video_path, sample_rate=5):
         for result in results:
             boxes = result.boxes
             for box in boxes:
-                # Get detection information
                 class_id = int(box.cls.item())
                 class_name = class_names[class_id]
+                bbox = box.xyxy[0].tolist()
+                confidence = box.conf.item()
+                detections.append(Detection(frame_idx, class_id, class_name, bbox, confidence))
 
-                # Filter for relevant objects (person, sports ball)
-                if class_name in ["person", "sports ball"]:
-                    bbox = box.xyxy[0].tolist()  # [x1, y1, x2, y2]
-                    confidence = box.conf.item()
-
-                    # Create Detection object
-                    detection = Detection(frame_idx, class_id, class_name,
-                                          bbox, confidence)
-                    detections.append(detection)
-
-    # Release video capture
     cap.release()
-
     return frames, detections
