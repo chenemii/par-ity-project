@@ -17,74 +17,68 @@ def segment_swing(pose_data, detections, sample_rate=1):
         angles = calculate_joint_angles(keypoints)
         angles_by_frame[idx] = angles
 
+    # --- Dynamic Phase Segmentation ---
+    # 1. Setup: before any significant movement
+    # 2. Backswing: from end of setup to top of backswing
+    # 3. Downswing: from top of backswing to just before impact
+    # 4. Impact: frame(s) where ball first moves
+    # 5. Follow-through: after impact
+
+    # --- 1. Find end of setup (first significant movement) ---
     setup_end = frame_indices[0]
     initial_angles = angles_by_frame[frame_indices[0]]
     initial_shoulder = initial_angles.get("right_shoulder")
     initial_wrist = initial_angles.get("right_elbow")
-
+    movement_threshold = 8  # degrees, can be tuned
     for idx in frame_indices[1:]:
         angles = angles_by_frame[idx]
         shoulder = angles.get("right_shoulder")
         wrist = angles.get("right_elbow")
-        if shoulder and initial_shoulder and abs(shoulder - initial_shoulder) > 10:
-            setup_end = idx
-            break
-        if wrist and initial_wrist and abs(wrist - initial_wrist) > 10:
-            setup_end = idx
+        if (shoulder and initial_shoulder and abs(shoulder - initial_shoulder) > movement_threshold) or \
+           (wrist and initial_wrist and abs(wrist - initial_wrist) > movement_threshold):
+            setup_end = idx - 1
             break
 
+    # --- 2. Top of backswing (max shoulder angle after setup) ---
     max_shoulder_angle = -1
-    top_backswing_frame = setup_end
+    top_backswing_frame = setup_end + 1
     for idx in frame_indices:
-        if idx < setup_end:
+        if idx <= setup_end:
             continue
         shoulder = angles_by_frame[idx].get("right_shoulder")
         if shoulder and shoulder > max_shoulder_angle:
             max_shoulder_angle = shoulder
             top_backswing_frame = idx
 
-    # Find impact frame by looking for the point where the club head is at its lowest point
-    # during the downswing, before it starts rising in the follow-through
+    # --- 3. Impact: first significant ball movement ---
     impact_frame = None
-    min_wrist_y = float('inf')
-    prev_wrist_y = None
-    wrist_velocities = []
-    
-    # First pass: collect wrist positions and calculate velocities
-    wrist_positions = []
-    for idx in frame_indices:
-        if idx < top_backswing_frame:
+    ball_detections = [d for d in detections if d.class_name == "sports ball"]
+    ball_detections.sort(key=lambda x: x.frame_idx)
+    movement_threshold_px = 2
+    prev_x = prev_y = None
+    prev_frame = None
+    for detection in ball_detections:
+        frame_idx = detection.frame_idx
+        if frame_idx < top_backswing_frame:
             continue
-        keypoints = pose_data[idx]
-        if len(keypoints) > 16:
-            wrist_y = keypoints[16][1]
-            wrist_positions.append((idx, wrist_y))
-    
-    # Calculate velocities between consecutive frames
-    for i in range(1, len(wrist_positions)):
-        idx, wrist_y = wrist_positions[i]
-        prev_idx, prev_y = wrist_positions[i-1]
-        velocity = (wrist_y - prev_y) / (idx - prev_idx)
-        wrist_velocities.append((idx, velocity))
-    
-    # Find impact as the point where velocity changes from negative (downward) to positive (upward)
-    for i in range(1, len(wrist_velocities)):
-        idx, velocity = wrist_velocities[i]
-        prev_idx, prev_velocity = wrist_velocities[i-1]
-        if prev_velocity < 0 and velocity > 0:  # Velocity changes from negative to positive
-            impact_frame = prev_idx
-            break
-    
-    # If no clear impact point found, use the frame with minimum wrist Y position
-    if impact_frame is None:
-        for idx, wrist_y in wrist_positions:
-            if wrist_y < min_wrist_y:
-                min_wrist_y = wrist_y
-                impact_frame = idx
-
+        x1, y1, x2, y2 = detection.bbox
+        ball_x = (x1 + x2) / 2
+        ball_y = (y1 + y2) / 2
+        if prev_x is not None and prev_y is not None:
+            dx = abs(ball_x - prev_x)
+            dy = abs(ball_y - prev_y)
+            if dx > movement_threshold_px or dy > movement_threshold_px:
+                impact_frame = frame_idx
+                break
+        prev_x = ball_x
+        prev_y = ball_y
+        prev_frame = frame_idx
+    if impact_frame is None and prev_frame is not None:
+        impact_frame = prev_frame
     if impact_frame is None:
         impact_frame = frame_indices[-1]
 
+    # --- 4. Assign phases dynamically ---
     for idx in frame_indices:
         if idx <= setup_end:
             swing_phases["setup"].append(idx)
