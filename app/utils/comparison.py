@@ -120,133 +120,83 @@ def extract_frames(video_path, max_frames=100):
     return frames
 
 
-def extract_key_swing_frames(video_path, swing_phases=None):
+def extract_key_swing_frames(video_path, frames, swing_phases=None):
     """
-    Extract 3 key frames from a golf swing video:
+    Extract 3 key frames from a list of processed frames.
     1. First setup frame
     2. Last backswing frame (top of backswing)
     3. First impact frame
     
     Args:
-        video_path (str): Path to the video file
+        video_path (str): Path to the original video file (used for rotation metadata).
+        frames (list): List of processed video frames.
         swing_phases (dict): Dictionary mapping phase names to lists of frame indices
+                             relative to the 'frames' list.
         
     Returns:
         dict: Dictionary mapping phase names to frames
     """
-    if not os.path.exists(video_path):
-        raise ValueError(f"Video file not found: {video_path}")
+    key_frames = {'setup': None, 'backswing': None, 'impact': None}
     
-    print(f"Extracting key frames from: {video_path}")
-    
-    # Use basic OpenCV VideoCapture
-    cap = cv2.VideoCapture(video_path)
-    
-    if not cap.isOpened():
-        raise ValueError(f"Could not open video: {video_path}")
-    
-    try:
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames <= 0:
-            raise ValueError(f"Invalid video: no frames found in {video_path}")
-        
-        print(f"Total frames in video: {total_frames}")
-        
-        # Check for rotation metadata
-        rotation_angle = 0
-        try:
-            # Try to get orientation metadata if available
-            orientation = cap.get(cv2.CAP_PROP_ORIENTATION_META)
-            if orientation == 90:
-                rotation_angle = 270  # Rotate counterclockwise
-            elif orientation == 180:
-                rotation_angle = 180
-            elif orientation == 270:
-                rotation_angle = 90   # Rotate counterclockwise
-            print(f"Video orientation metadata: {orientation}, applying rotation: {rotation_angle}")
-        except:
-            print("No orientation metadata available")
-        
-        key_frames = {}
-        
-        # Determine frame indices based on swing phases
-        if swing_phases:
-            # Get first setup frame
-            setup_frames = swing_phases.get('setup', [])
-            setup_idx = setup_frames[0] if setup_frames else 0
-            
-            # Get last backswing frame (top of backswing)
-            backswing_frames = swing_phases.get('backswing', [])
-            backswing_idx = backswing_frames[-1] if backswing_frames else total_frames//3
-            
-            # Get first impact frame
-            impact_frames = swing_phases.get('impact', [])
-            impact_idx = impact_frames[0] if impact_frames else total_frames//2
-        else:
-            # Fallback to default indices if no swing phases provided
-            setup_idx = 0
-            backswing_idx = total_frames // 3
-            impact_idx = int(total_frames * 0.6)
-        
-        print(f"Frame indices - Setup: {setup_idx}, Backswing: {backswing_idx}, Impact: {impact_idx}")
-        
-        # Extract frames for each phase
-        phases = [
-            ('setup', setup_idx),
-            ('backswing', backswing_idx),
-            ('impact', impact_idx)
-        ]
-        
-        for phase_name, frame_idx in phases:
-            frame = _extract_single_frame(cap, frame_idx, total_frames, rotation_angle, phase_name)
-            if frame is not None:
-                key_frames[phase_name] = frame
-                print(f"Successfully extracted {phase_name} frame")
-            else:
-                print(f"Failed to extract {phase_name} frame")
-        
+    if not frames:
+        print("Warning: No frames provided to extract_key_swing_frames.")
         return key_frames
         
-    except Exception as e:
-        raise ValueError(f"Error extracting frames from {video_path}: {str(e)}")
-    finally:
-        cap.release()
-
-
-def _extract_single_frame(cap, target_idx, total_frames, rotation_angle, phase_name):
-    """
-    Extract a single frame from video with validation and rotation correction
-    """
-    # Try the target frame first
-    for attempt_idx in [target_idx, target_idx + 1, target_idx - 1, target_idx + 2, target_idx - 2]:
-        if attempt_idx < 0 or attempt_idx >= total_frames:
-            continue
-            
-        cap.set(cv2.CAP_PROP_POS_FRAMES, attempt_idx)
-        ret, frame = cap.read()
+    # Determine frame indices based on swing phases
+    if swing_phases:
+        # Get first setup frame
+        setup_frames = swing_phases.get('setup', [])
+        setup_idx = setup_frames[0] if setup_frames else 0
         
-        if not ret or frame is None:
-            print(f"Failed to read frame at index {attempt_idx} for {phase_name}")
-            continue
+        # Get last backswing frame (top of backswing)
+        backswing_frames = swing_phases.get('backswing', [])
+        backswing_idx = backswing_frames[-1] if backswing_frames else len(frames) // 3
         
-        # Validate frame has 3 channels (color)
-        if len(frame.shape) != 3 or frame.shape[2] != 3:
-            print(f"Frame at index {attempt_idx} for {phase_name} is not in color format: {frame.shape}")
-            continue
-        
-        print(f"Successfully read frame at index {attempt_idx} for {phase_name}, shape: {frame.shape}")
-        
-        # Apply rotation correction if needed
-        if rotation_angle != 0:
-            print(f"Before rotation: {frame.shape}")
-            frame = _apply_rotation(frame, rotation_angle)
-            print(f"After {rotation_angle}° rotation: {frame.shape}")
-            print(f"Applied {rotation_angle}° rotation to {phase_name} frame")
-        
-        return frame.copy()
+        # Get first impact frame
+        impact_frames = swing_phases.get('impact', [])
+        impact_idx = impact_frames[0] if impact_frames else len(frames) // 2
+    else:
+        # Fallback to default indices if no swing phases provided
+        setup_idx = 0
+        backswing_idx = len(frames) // 3
+        impact_idx = len(frames) // 2
     
-    print(f"Could not extract valid frame for {phase_name} after trying multiple indices")
-    return None
+    print(f"Key frame indices (relative to processed frames) - Setup: {setup_idx}, Backswing: {backswing_idx}, Impact: {impact_idx}")
+    
+    # Get rotation angle from the original video file
+    rotation_angle = 0
+    if os.path.exists(video_path):
+        cap = cv2.VideoCapture(video_path)
+        if cap.isOpened():
+            try:
+                orientation = int(cap.get(cv2.CAP_PROP_ORIENTATION_META))
+                if orientation == 90:
+                    rotation_angle = 270  # Rotate counterclockwise
+                elif orientation == 180:
+                    rotation_angle = 180
+                elif orientation == 270:
+                    rotation_angle = 90   # Rotate counterclockwise
+                print(f"Video orientation metadata: {orientation}, applying rotation: {rotation_angle}")
+            except Exception as e:
+                print(f"Could not read orientation metadata: {e}")
+            finally:
+                cap.release()
+    else:
+        print(f"Warning: Video path {video_path} not found for rotation check.")
+
+    phase_indices = {'setup': setup_idx, 'backswing': backswing_idx, 'impact': impact_idx}
+
+    for phase_name, frame_idx in phase_indices.items():
+        if 0 <= frame_idx < len(frames):
+            frame = frames[frame_idx].copy()
+            if rotation_angle != 0:
+                frame = _apply_rotation(frame, rotation_angle)
+            key_frames[phase_name] = frame
+            print(f"Successfully extracted {phase_name} frame from memory.")
+        else:
+            print(f"Failed to extract {phase_name} frame: index {frame_idx} is out of bounds for {len(frames)} frames.")
+
+    return key_frames
 
 
 def _apply_rotation(frame, rotation_angle):
@@ -432,13 +382,13 @@ def create_key_frame_comparison(user_video_path, pro_video_path=None, user_swing
               'user_image_path', 'pro_image_path', 'title', and 'comments' as values
     """
     # Extract key frames from user video
-    user_frames = extract_key_swing_frames(user_video_path, user_swing_phases)
+    user_frames = extract_key_swing_frames(user_video_path, user_frames, user_swing_phases)
     
     # Get pro frames either from provided images or video
     if use_pro_images:
         pro_frames = load_pro_reference_images()
     else:
-        pro_frames = extract_key_swing_frames(pro_video_path, pro_swing_phases)
+        pro_frames = extract_key_swing_frames(pro_video_path, pro_frames, pro_swing_phases)
     
     # Create output directory with absolute path
     output_dir = os.path.abspath(output_dir)

@@ -5,84 +5,125 @@ Swing analysis module for golf swing segmentation and trajectory analysis
 import numpy as np
 from app.models.pose_estimator import calculate_joint_angles
 
-def segment_swing(pose_data, detections, sample_rate=1):
-    swing_phases = {"setup": [], "backswing": [], "downswing": [], "impact": [], "follow_through": []}
-    frame_indices = sorted(pose_data.keys())
-    if not frame_indices:
-        return swing_phases
 
-    angles_by_frame = {}
+def find_top_of_backswing(pose_data):
+    """Helper function to find the peak of backswing"""
+    frame_indices = sorted(pose_data.keys())
+    max_shoulder_angle = -1
+    top_frame = frame_indices[0]
+    
     for idx in frame_indices:
         keypoints = pose_data[idx]
         angles = calculate_joint_angles(keypoints)
-        angles_by_frame[idx] = angles
+        shoulder = angles.get("right_shoulder", 0)
+        if shoulder > max_shoulder_angle:
+            max_shoulder_angle = shoulder
+            top_frame = idx
+    
+    return top_frame
 
-    # --- Dynamic Phase Segmentation ---
-    # 1. Setup: before any significant movement
-    # 2. Backswing: from end of setup to top of backswing
-    # 3. Downswing: from top of backswing to just before impact
-    # 4. Impact: frame(s) where ball first moves
-    # 5. Follow-through: after impact
 
-    # --- 1. Find end of setup (first significant movement) ---
+def detect_impact_frame(pose_data, detections, sample_rate=2):
+    """
+    Simple impact detection: ball movement first, wrist speed fallback
+    """
+    frame_indices = sorted(pose_data.keys())
+    if len(frame_indices) < 10:
+        return None
+    
+    top_backswing = find_top_of_backswing(pose_data)
+    downswing_frames = [f for f in frame_indices if f > top_backswing]
+    
+    if not downswing_frames:
+        return None
+    
+    # Method 1: Ball movement (if we have ball detections)
+    if detections:
+        ball_detections = [d for d in detections if d.class_name == "sports ball"]
+        ball_positions = {}
+        
+        for detection in ball_detections:
+            frame_idx = detection.frame_idx // sample_rate
+            if frame_idx > top_backswing:
+                x1, y1, x2, y2 = detection.bbox
+                center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
+                ball_positions[frame_idx] = (center_x, center_y)
+        
+        # Find first significant ball movement
+        if len(ball_positions) >= 2:
+            sorted_frames = sorted(ball_positions.keys())
+            for i in range(1, len(sorted_frames)):
+                curr_pos = ball_positions[sorted_frames[i]]
+                prev_pos = ball_positions[sorted_frames[i-1]]
+                movement = np.sqrt((curr_pos[0] - prev_pos[0])**2 + (curr_pos[1] - prev_pos[1])**2)
+                
+                if movement > 15:  # Significant movement threshold
+                    print(f"Impact detected via ball movement at frame {sorted_frames[i]}")
+                    return sorted_frames[i]
+    
+    # Method 2: Wrist speed fallback (simple and reliable)
+    max_wrist_speed = 0
+    impact_frame = None
+    
+    for i in range(1, len(downswing_frames)):
+        curr_frame = downswing_frames[i]
+        prev_frame = downswing_frames[i-1]
+        
+        curr_angles = calculate_joint_angles(pose_data[curr_frame])
+        prev_angles = calculate_joint_angles(pose_data[prev_frame])
+        
+        curr_wrist = curr_angles.get("right_wrist", 0)
+        prev_wrist = prev_angles.get("right_wrist", 0)
+        wrist_speed = abs(curr_wrist - prev_wrist)
+        
+        if wrist_speed > max_wrist_speed:
+            max_wrist_speed = wrist_speed
+            impact_frame = curr_frame
+    
+    print(f"Impact detected via wrist speed at frame {impact_frame}")
+    return impact_frame or downswing_frames[len(downswing_frames) // 3]
+
+
+def segment_swing_pose_based(pose_data, detections=None, sample_rate=2):
+    """
+    Simple swing segmentation with clean impact detection
+    """
+    swing_phases = {"setup": [], "backswing": [], "downswing": [], "impact": [], "follow_through": []}
+    frame_indices = sorted(pose_data.keys())
+    
+    if not frame_indices:
+        return swing_phases
+
+    # 1. Find setup end (first significant movement)
     setup_end = frame_indices[0]
-    initial_angles = angles_by_frame[frame_indices[0]]
-    initial_shoulder = initial_angles.get("right_shoulder")
-    initial_wrist = initial_angles.get("right_elbow")
-    movement_threshold = 8  # degrees, can be tuned
+    initial_angles = calculate_joint_angles(pose_data[frame_indices[0]])
+    initial_shoulder = initial_angles.get("right_shoulder", 0)
+    
     for idx in frame_indices[1:]:
-        angles = angles_by_frame[idx]
-        shoulder = angles.get("right_shoulder")
-        wrist = angles.get("right_elbow")
-        if (shoulder and initial_shoulder and abs(shoulder - initial_shoulder) > movement_threshold) or \
-           (wrist and initial_wrist and abs(wrist - initial_wrist) > movement_threshold):
-            setup_end = idx - 1
+        angles = calculate_joint_angles(pose_data[idx])
+        shoulder = angles.get("right_shoulder", 0)
+        if abs(shoulder - initial_shoulder) > 10:
+            setup_end = max(frame_indices[0], idx - 2)
             break
 
-    # --- 2. Top of backswing (max shoulder angle after setup) ---
-    max_shoulder_angle = -1
-    top_backswing_frame = setup_end + 1
-    for idx in frame_indices:
-        if idx <= setup_end:
-            continue
-        shoulder = angles_by_frame[idx].get("right_shoulder")
-        if shoulder and shoulder > max_shoulder_angle:
-            max_shoulder_angle = shoulder
-            top_backswing_frame = idx
+    # 2. Find top of backswing
+    top_backswing = find_top_of_backswing(pose_data)
 
-    # --- 3. Impact: first significant ball movement ---
-    impact_frame = None
-    ball_detections = [d for d in detections if d.class_name == "sports ball"]
-    ball_detections.sort(key=lambda x: x.frame_idx)
-    movement_threshold_px = 2
-    prev_x = prev_y = None
-    prev_frame = None
-    for detection in ball_detections:
-        frame_idx = detection.frame_idx
-        if frame_idx < top_backswing_frame:
-            continue
-        x1, y1, x2, y2 = detection.bbox
-        ball_x = (x1 + x2) / 2
-        ball_y = (y1 + y2) / 2
-        if prev_x is not None and prev_y is not None:
-            dx = abs(ball_x - prev_x)
-            dy = abs(ball_y - prev_y)
-            if dx > movement_threshold_px or dy > movement_threshold_px:
-                impact_frame = frame_idx
-                break
-        prev_x = ball_x
-        prev_y = ball_y
-        prev_frame = frame_idx
-    if impact_frame is None and prev_frame is not None:
-        impact_frame = prev_frame
-    if impact_frame is None:
-        impact_frame = frame_indices[-1]
+    # 3. Find impact frame
+    impact_frame = detect_impact_frame(pose_data, detections, sample_rate)
+    
+    # Simple validation and fallback
+    if not impact_frame or impact_frame <= top_backswing:
+        downswing_frames = [f for f in frame_indices if f > top_backswing]
+        impact_frame = downswing_frames[len(downswing_frames) // 3] if downswing_frames else top_backswing + 1
 
-    # --- 4. Assign phases dynamically ---
+    print(f"Swing phases: Setup end={setup_end}, Top backswing={top_backswing}, Impact={impact_frame}")
+
+    # 4. Assign phases
     for idx in frame_indices:
         if idx <= setup_end:
             swing_phases["setup"].append(idx)
-        elif idx <= top_backswing_frame:
+        elif idx <= top_backswing:
             swing_phases["backswing"].append(idx)
         elif idx < impact_frame:
             swing_phases["downswing"].append(idx)
@@ -93,7 +134,19 @@ def segment_swing(pose_data, detections, sample_rate=1):
 
     return swing_phases
 
-def analyze_trajectory(frames, detections, swing_phases, sample_rate=1):
+
+# Wrapper function to maintain compatibility with existing Streamlit app
+def segment_swing(pose_data, detections, sample_rate=2):
+    """
+    Main swing segmentation function (wrapper for pose-based approach)
+    """
+    return segment_swing_pose_based(pose_data, detections, sample_rate)
+
+
+def analyze_trajectory(frames, detections, swing_phases, sample_rate=2):
+    """
+    Analyze ball trajectory and calculate club speed
+    """
     trajectory_data = {}
     if len(frames) < 150:
         sample_rate = 1
@@ -108,7 +161,7 @@ def analyze_trajectory(frames, detections, swing_phases, sample_rate=1):
     ball_positions = {}
 
     for detection in ball_detections:
-        frame_idx = detection.frame_idx
+        frame_idx = detection.frame_idx // sample_rate
         if frame_idx >= impact_frame_idx:
             x1, y1, x2, y2 = detection.bbox
             center_x = (x1 + x2) / 2
@@ -122,7 +175,7 @@ def analyze_trajectory(frames, detections, swing_phases, sample_rate=1):
     club_speed = None
     downswing_frames = swing_phases.get("downswing", [])
     if len(downswing_frames) >= 2:
-        actual_frames_elapsed = (downswing_frames[-1] - downswing_frames[0])
+        actual_frames_elapsed = (downswing_frames[-1] - downswing_frames[0]) * sample_rate
         time_diff = actual_frames_elapsed / 30
         if time_diff > 0:
             club_speed = 100 * (1 / time_diff)

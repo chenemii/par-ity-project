@@ -3,6 +3,7 @@ Video processing and object detection module
 """
 
 import cv2
+import platform
 import numpy as np
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -35,9 +36,17 @@ def process_video(video_path, sample_rate=5):
     model = YOLO("yolov8n.pt")
     class_names = model.names
 
-    cap = cv2.VideoCapture(video_path)
+    # On macOS ("Darwin"), the AVFoundation backend is often more reliable.
+    # For other systems, FFMPEG is a good choice.
+    backend = cv2.CAP_AVFOUNDATION if platform.system() == "Darwin" else cv2.CAP_FFMPEG
+    cap = cv2.VideoCapture(video_path, backend)
+    
     if not cap.isOpened():
-        raise ValueError("Error opening video file")
+        backend_name = "AVFoundation" if platform.system() == "Darwin" else "FFMPEG"
+        print(f"Warning: Could not open video with {backend_name} backend. Trying default.")
+        cap = cv2.VideoCapture(video_path) # Fallback to default
+        if not cap.isOpened():
+            raise ValueError("Error opening video file with any available backend.")
 
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 

@@ -166,7 +166,7 @@ def main():
         "Frame Skip Rate (YOLO)",
         min_value=1,
         max_value=10,
-        value=5,
+        value=2,
         help=
         "Process every Nth frame. Higher values = faster but less accurate.")
         
@@ -476,7 +476,8 @@ def main():
                 with st.spinner("Extracting key frames from your swing..."):
                     user_video_path = st.session_state.analysis_data['video_path']
                     user_swing_phases = st.session_state.analysis_data['swing_phases']
-                    key_frames = extract_key_swing_frames(user_video_path, user_swing_phases)
+                    frames = st.session_state.analysis_data['frames']
+                    key_frames = extract_key_swing_frames(user_video_path, frames, user_swing_phases)
 
                 st.success("Key frame analysis complete!")
                 st.subheader("Key Frame Analysis: Your Swing's Critical Positions")
