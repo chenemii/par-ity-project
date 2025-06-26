@@ -250,7 +250,7 @@ def main():
             with st.spinner("Processing video and detecting objects..."):
                 frames, detections = process_video(video_path,
                                                    sample_rate=sample_rate)
-                st.success(f"Processed {len(frames)} frames")
+                st.success("Video processing complete!")
 
             # Step 2: Analyze pose
             with st.spinner("Analyzing golfer's pose..."):
@@ -314,32 +314,6 @@ def main():
 
     # Show action buttons and their results (only if analysis is complete)
     if st.session_state.video_analyzed:
-        # Display swing phases
-        if 'swing_phases' in st.session_state.analysis_data:
-            swing_phases = st.session_state.analysis_data['swing_phases']
-            st.subheader("Swing Phases")
-            phase_cols = st.columns(5)
-            for i, (phase, frames_in_phase) in enumerate(swing_phases.items()):
-                with phase_cols[i]:
-                    st.metric(label=phase.capitalize(),
-                              value=f"{len(frames_in_phase)} frames")
-
-        # Display club speed if available
-        if 'trajectory_data' in st.session_state.analysis_data and 'swing_phases' in st.session_state.analysis_data:
-            trajectory_data = st.session_state.analysis_data['trajectory_data']
-            swing_phases = st.session_state.analysis_data['swing_phases']
-            impact_frames = swing_phases.get("impact", [])
-            if impact_frames:
-                impact_frame = impact_frames[len(impact_frames) // 2]
-                if impact_frame in trajectory_data and trajectory_data[
-                        impact_frame].get("club_speed"):
-                    st.subheader("Club Speed")
-                    st.metric(
-                        label="Estimated Club Speed",
-                        value=
-                        f"{trajectory_data[impact_frame]['club_speed']:.1f} mph"
-                    )
-
         # Display the GPT prompt in an expander
         if 'prompt' in st.session_state.analysis_data:
             with st.expander("View LLM Prompt", expanded=False):
@@ -531,11 +505,19 @@ def main():
                                     height, width = rgb_frame.shape[:2]
                                     print(f"Frame dimensions for {phase}: {width}x{height}")
                                     
+                                    # Resize frame proportionally for better display
+                                    # Target width of 400 pixels while maintaining aspect ratio
+                                    target_width = 400
+                                    aspect_ratio = height / width
+                                    target_height = int(target_width * aspect_ratio)
+                                    
                                     pil_img = Image.fromarray(rgb_frame)
+                                    # Resize the image proportionally
+                                    pil_img = pil_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
                                     pil_img.save(temp_file.name, format="JPEG", quality=95)
                                     
-                                    # Display the image
-                                    st.image(temp_file.name, use_container_width=True)
+                                    # Display the image with fixed width
+                                    st.image(temp_file.name, width=target_width)
                                     
                                     # Clean up temp file
                                     try:
