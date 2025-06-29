@@ -6,6 +6,7 @@ import json
 import httpx
 from openai import OpenAI
 import streamlit as st
+import re
 
 
 def check_llm_services():
@@ -328,6 +329,55 @@ def create_llm_prompt(analysis_data):
         str: Prompt for LLM
     """
     prompt = """
+You are analyzing a golf swing. First, here are examples of professional golfer swing analyses that represent benchmark performance levels:
+
+## PROFESSIONAL BENCHMARKS
+
+### Nelly Korda (Example 1) - LPGA Tour Professional
+**Swing Phases:**
+- Setup: 122 frames, Backswing: 2 frames, Downswing: 5 frames, Impact: 1 frame, Follow-through: 42 frames
+
+**Key Metrics:**
+- Tempo Ratio: 0.4, Hip Rotation: 45°, Shoulder Rotation: 90°, Posture Score: 80%
+- Arm Extension: 80%, Wrist Hinge: 80°, Shoulder Plane Consistency: 85%
+- Weight Shift: 70%, Transition Smoothness: 75%, Sequential Kinematic Sequence: 82%
+- Energy Transfer Efficiency: 78%, Backswing Duration: 0.067s, Downswing Duration: 0.167s
+
+### Nelly Korda (Example 2) - Different Swing Tempo Style
+**Key Metrics:**
+- Tempo Ratio: 3.0, Backswing Duration: 0.9s, Downswing Duration: 0.9s
+- All other core metrics remain consistent: Hip Rotation: 45°, Shoulder Rotation: 90°, etc.
+
+### Nelly Korda (Example 3) - Fast Tempo Style
+**Key Metrics:**
+- Tempo Ratio: 0.3, Backswing Duration: 0.067s, Downswing Duration: 0.2s
+- Consistent professional metrics maintained across all mechanical aspects
+
+### Lydia Ko - LPGA Tour Professional
+**Key Metrics:**
+- Tempo Ratio: 14.0, Backswing Duration: 0.467s, Downswing Duration: 0.033s
+- Demonstrates that professional tempo can vary dramatically while maintaining consistency in:
+- Hip/Shoulder Rotation, Posture, Arm Extension, Weight Shift, and Sequential Timing
+
+### Atthaya Thitikul - LPGA Tour Professional
+**Key Metrics:**
+- Tempo Ratio: 2.8, Backswing Duration: 0.567s, Downswing Duration: 0.2s
+- Consistent with professional standards across all biomechanical markers
+
+## PROFESSIONAL STANDARDS SUMMARY
+Based on these examples, professional golfers consistently achieve:
+- **Core Body Mechanics**: Hip Rotation: 45°, Shoulder Rotation: 90°, Posture Score: 80%
+- **Upper Body**: Arm Extension: 80%, Wrist Hinge: 80°, Shoulder Plane Consistency: 85%
+- **Lower Body**: Weight Shift: 70%, Ground Force Efficiency: 70%
+- **Timing**: Transition Smoothness: 75%, Sequential Kinematic Sequence: 82%
+- **Efficiency**: Energy Transfer: 78%, Power Accumulation: 75%
+- **Head Movement**: Lateral: 2.5in, Vertical: 1.8in (minimal movement is professional standard)
+- **Tempo**: Highly variable (0.3 to 14.0 ratio) - personal style, not performance indicator
+
+---
+
+## CURRENT PLAYER ANALYSIS
+
 I've analyzed a golf swing and extracted the following data:
 
 ## Swing Phases
@@ -405,22 +455,358 @@ I've analyzed a golf swing and extracted the following data:
 
     prompt += """
 
-Based on this detailed biomechanical data, please provide:
+## ANALYSIS INSTRUCTIONS
 
-1. A comprehensive analysis of the golf swing including:
-   - Detailed breakdown of each swing phase
-   - Analysis of body mechanics and kinematic sequence
-   - Assessment of power generation and efficiency
-   - Evaluation of clubface control and swing path
+Using the professional benchmarks above as your calibration reference, provide:
 
-2. Key strengths and weaknesses in the swing, including:
-   - Specific biomechanical inefficiencies
-   - Compensatory movements
-   - Physical limitations
-   - Technical flaws
+1. **Performance Classification**: Start with "Performance Classification: [Professional/Advanced/Intermediate/Beginner]" based on how the player's metrics compare to professional standards.
 
+2. **Comparative Analysis**: 
+   - **Strengths** (metrics that meet/exceed professional benchmarks):
+     • List specific strong points (use bullet points)
+     • Reference professional benchmark values
+   
+   - **Areas for Improvement** (metrics significantly below professional standards):
+     • List specific weaknesses (use bullet points)
+     • Note the gap from professional standards
 
-Please be specific, detailed, and actionable in your feedback, providing the kind of analysis a professional golf coach would give after a thorough assessment.
+3. **Priority Improvement Areas**: List exactly 3 areas in order of importance:
+   1. [Most Critical] - Describe what's wrong and what it should be like
+   2. [Important] - Describe what's wrong and what it should be like  
+   3. [Focus Area] - Describe what's wrong and what it should be like
+
+Remember: Professional golfers consistently achieve the benchmark metrics shown above. Use these as the gold standard for what constitutes excellent golf swing mechanics, while being realistic about the progression needed to reach those levels.
+
+Provide your analysis in the structured format above for optimal coaching feedback.
 """
 
     return prompt
+
+
+def parse_and_format_analysis(raw_analysis):
+    """
+    Parse the raw LLM analysis and format it into structured components
+    
+    Args:
+        raw_analysis (str): Raw analysis text from LLM
+        
+    Returns:
+        dict: Structured analysis with classification, strengths/weaknesses, and priorities
+    """
+    # Default structure
+    formatted_analysis = {
+        'classification': 'Intermediate',  # Default classification
+        'strengths': [],
+        'weaknesses': [],
+        'priority_improvements': []
+    }
+    
+    # Try to extract classification from the analysis
+    classification_patterns = [
+        r'(?:Performance Classification|Classification|Level).*?:\s*(Professional|Advanced|Intermediate|Beginner)',
+        r'(Professional|Advanced|Intermediate|Beginner)\s+(?:Level|Amateur)',
+        r'classified as\s+(Professional|Advanced|Intermediate|Beginner)',
+        r'(?:at|as)\s+(?:an?\s+)?(Professional|Advanced|Intermediate|Beginner)\s+level'
+    ]
+    
+    classification_found = False
+    for pattern in classification_patterns:
+        match = re.search(pattern, raw_analysis, re.IGNORECASE)
+        if match:
+            formatted_analysis['classification'] = match.group(1).title()
+            classification_found = True
+            break
+    
+    # If no classification found, try to infer from content
+    if not classification_found:
+        analysis_lower = raw_analysis.lower()
+        if 'professional' in analysis_lower and ('meets' in analysis_lower or 'exceeds' in analysis_lower):
+            formatted_analysis['classification'] = 'Professional'
+        elif 'advanced' in analysis_lower or ('within 10' in analysis_lower and 'pro' in analysis_lower):
+            formatted_analysis['classification'] = 'Advanced'
+        elif 'beginner' in analysis_lower or ('30%' in analysis_lower and 'below' in analysis_lower):
+            formatted_analysis['classification'] = 'Beginner'
+        else:
+            formatted_analysis['classification'] = 'Intermediate'
+    
+    # Extract strengths and weaknesses
+    strengths_section = ""
+    weaknesses_section = ""
+    
+    # Look for strengths/weaknesses sections
+    strengths_patterns = [
+        r'(?:Strengths|Strong Points|Positives|Meets.*Standards)[\s\S]*?(?=(?:Weak|Priority|Improvement|Areas|$))',
+        r'(?:Professional Level|Exceeds.*Standards)[\s\S]*?(?=(?:Below|Weak|Priority|$))'
+    ]
+    
+    weaknesses_patterns = [
+        r'(?:Weaknesses|Weak|Areas.*Improvement|Priority.*Areas|Below.*Standards)[\s\S]*?(?=(?:Recommendation|Priority|$))',
+        r'(?:Critical|Important|Significant.*gaps?)[\s\S]*?(?=(?:Recommendation|$))'
+    ]
+    
+    for pattern in strengths_patterns:
+        match = re.search(pattern, raw_analysis, re.IGNORECASE)
+        if match:
+            strengths_section = match.group(0)
+            break
+    
+    for pattern in weaknesses_patterns:
+        match = re.search(pattern, raw_analysis, re.IGNORECASE)
+        if match:
+            weaknesses_section = match.group(0)
+            break
+    
+    # Parse strengths from the section
+    if strengths_section:
+        strength_items = re.findall(r'[-•]\s*([^-•\n]+)', strengths_section)
+        formatted_analysis['strengths'] = [item.strip() for item in strength_items[:4]]  # Limit to 4
+    
+    # If no bullet points found, try to extract from general content
+    if not formatted_analysis['strengths']:
+        # Look for positive indicators in the full text
+        positive_indicators = [
+            r'(?:meets|exceeds|matches).*professional.*(?:standard|benchmark)',
+            r'(?:excellent|good|strong).*(?:posture|rotation|extension|timing)',
+            r'(?:consistent|solid).*(?:mechanics|form|technique)',
+            r'(?:efficient|effective).*(?:transfer|generation|sequence)'
+        ]
+        
+        for pattern in positive_indicators:
+            matches = re.findall(pattern, raw_analysis, re.IGNORECASE)
+            for match in matches[:2]:  # Limit to avoid overwhelming
+                formatted_analysis['strengths'].append(match.strip())
+    
+    # Parse weaknesses from the section
+    if weaknesses_section:
+        weakness_items = re.findall(r'[-•]\s*([^-•\n]+)', weaknesses_section)
+        formatted_analysis['weaknesses'] = [item.strip() for item in weakness_items[:4]]  # Limit to 4
+    
+    # If no bullet points found, try to extract from general content
+    if not formatted_analysis['weaknesses']:
+        # Look for negative indicators in the full text
+        negative_indicators = [
+            r'(?:below|under).*professional.*(?:standard|benchmark)',
+            r'(?:poor|weak|limited).*(?:posture|rotation|extension|timing)',
+            r'(?:inconsistent|unstable).*(?:mechanics|form|technique)',
+            r'(?:inefficient|ineffective).*(?:transfer|generation|sequence)'
+        ]
+        
+        for pattern in negative_indicators:
+            matches = re.findall(pattern, raw_analysis, re.IGNORECASE)
+            for match in matches[:2]:  # Limit to avoid overwhelming
+                formatted_analysis['weaknesses'].append(match.strip())
+    
+    # Extract priority improvements
+    priority_patterns = [
+        r'(?:Priority.*Improvement|Critical.*Areas?)[\s\S]*?(?=(?:Recommendation|$))',
+        r'(?:1\..*?2\..*?3\.)',  # Numbered list
+        r'(?:Critical|Important|Fine-tuning)[\s\S]*?(?=(?:Critical|Important|Fine-tuning|$))'
+    ]
+    
+    for pattern in priority_patterns:
+        match = re.search(pattern, raw_analysis, re.IGNORECASE | re.DOTALL)
+        if match:
+            priority_text = match.group(0)
+            # Extract numbered items
+            numbered_items = re.findall(r'(\d+)\.\s*([^1-9\n]+)', priority_text)
+            for num, item in numbered_items[:3]:  # Limit to 3
+                formatted_analysis['priority_improvements'].append({
+                    'rank': int(num),
+                    'description': item.strip()
+                })
+            break
+    
+    # If no numbered priorities found, create generic ones based on classification
+    if not formatted_analysis['priority_improvements']:
+        if formatted_analysis['classification'] == 'Beginner':
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': 'Focus on fundamental posture and setup position'},
+                {'rank': 2, 'description': 'Develop consistent tempo and timing'},
+                {'rank': 3, 'description': 'Improve weight shift and balance throughout swing'}
+            ]
+        elif formatted_analysis['classification'] == 'Intermediate':
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': 'Enhance kinematic sequence and body rotation'},
+                {'rank': 2, 'description': 'Improve clubface control and swing path consistency'},
+                {'rank': 3, 'description': 'Optimize energy transfer efficiency'}
+            ]
+        elif formatted_analysis['classification'] == 'Advanced':
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': 'Fine-tune transition smoothness and timing'},
+                {'rank': 2, 'description': 'Optimize power accumulation and release'},
+                {'rank': 3, 'description': 'Enhance consistency under pressure'}
+            ]
+        else:  # Professional
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': 'Maintain current excellence with minor adjustments'},
+                {'rank': 2, 'description': 'Focus on course management and strategy'},
+                {'rank': 3, 'description': 'Continue physical conditioning for longevity'}
+            ]
+    
+    # Ensure we have some default content if parsing failed
+    if not formatted_analysis['strengths']:
+        formatted_analysis['strengths'] = ['Swing analysis completed successfully']
+    
+    if not formatted_analysis['weaknesses']:
+        formatted_analysis['weaknesses'] = ['Areas for improvement identified']
+    
+    return formatted_analysis
+
+
+def display_formatted_analysis(analysis_data):
+    """
+    Display the formatted analysis with performance classification, strengths/weaknesses table, and priorities
+    
+    Args:
+        analysis_data (dict): Structured analysis data from parse_and_format_analysis
+    """
+    # 1. Performance Classification with colored rounded rectangles
+    user_classification = analysis_data['classification']
+    
+    # Display classification in black bolded header
+    st.markdown(f"""
+    <h2 style='color: black; font-weight: bold; text-align: center; margin-bottom: 20px;'>
+        🎯 Performance Classification: {user_classification}
+    </h2>
+    """, unsafe_allow_html=True)
+    
+    # Create columns for the classification rectangles
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # Define colors and styling - all rectangles should have colors
+    colors = {
+        'Beginner': {'bg': '#ff4444', 'text': 'white'},
+        'Intermediate': {'bg': '#ff8800', 'text': 'white'},
+        'Advanced': {'bg': '#ffdd00', 'text': 'black'},
+        'Professional': {'bg': '#44aa44', 'text': 'white'}
+    }
+    
+    with col1:
+        bg_color = colors['Beginner']['bg']
+        text_color = colors['Beginner']['text']
+        border_style = '3px solid #333' if user_classification == 'Beginner' else '2px solid #ddd'
+        st.markdown(f"""
+        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
+                    border-radius: 15px; margin: 5px; border: {border_style};'>
+            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Beginner</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        bg_color = colors['Intermediate']['bg']
+        text_color = colors['Intermediate']['text']
+        border_style = '3px solid #333' if user_classification == 'Intermediate' else '2px solid #ddd'
+        st.markdown(f"""
+        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
+                    border-radius: 15px; margin: 5px; border: {border_style};'>
+            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Intermediate</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        bg_color = colors['Advanced']['bg']
+        text_color = colors['Advanced']['text']
+        border_style = '3px solid #333' if user_classification == 'Advanced' else '2px solid #ddd'
+        st.markdown(f"""
+        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
+                    border-radius: 15px; margin: 5px; border: {border_style};'>
+            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Advanced</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        bg_color = colors['Professional']['bg']
+        text_color = colors['Professional']['text']
+        border_style = '3px solid #333' if user_classification == 'Professional' else '2px solid #ddd'
+        st.markdown(f"""
+        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
+                    border-radius: 15px; margin: 5px; border: {border_style};'>
+            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Professional</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # 2. Strengths and Weaknesses Table
+    st.subheader("⚖️ Strengths & Areas for Improvement")
+    
+    # Create two columns for the table with a visual divider
+    col_left, col_divider, col_right = st.columns([5, 1, 5])
+    
+    with col_left:
+        st.markdown("""
+        <div style='background-color: #e8f5e8; padding: 15px; border-radius: 10px; height: 100%;'>
+            <h4 style='color: #2d5a2d; margin-top: 0;'>✅ Strengths</h4>
+        """, unsafe_allow_html=True)
+        for strength in analysis_data['strengths']:
+            st.markdown(f"• {strength}")
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col_divider:
+        st.markdown("""
+        <div style='width: 2px; background-color: #ddd; height: 200px; margin: 20px auto;'></div>
+        """, unsafe_allow_html=True)
+    
+    with col_right:
+        st.markdown("""
+        <div style='background-color: #fff5e6; padding: 15px; border-radius: 10px; height: 100%;'>
+            <h4 style='color: #cc6600; margin-top: 0;'>⚠️ Areas for Improvement</h4>
+        """, unsafe_allow_html=True)
+        for weakness in analysis_data['weaknesses']:
+            st.markdown(f"• {weakness}")
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # 3. Priority Improvement Areas
+    st.subheader("🎯 Priority Improvement Areas")
+    
+    for priority in sorted(analysis_data['priority_improvements'], key=lambda x: x['rank']):
+        rank = priority['rank']
+        description = priority['description']
+        
+        # Extract improvement area and description if possible
+        if ':' in description:
+            area, desc = description.split(':', 1)
+            area = area.strip()
+            desc = desc.strip()
+        elif '-' in description:
+            parts = description.split('-', 1)
+            if len(parts) == 2:
+                area = parts[0].strip()
+                desc = parts[1].strip()
+            else:
+                area = description
+                desc = ""
+        else:
+            # Try to extract first sentence as area, rest as description
+            sentences = description.split('. ')
+            if len(sentences) > 1:
+                area = sentences[0]
+                desc = '. '.join(sentences[1:])
+            else:
+                area = description
+                desc = ""
+        
+        # Color code by priority with better styling
+        if rank == 1:
+            st.markdown(f"""
+            <div style='background-color: #ffebee; padding: 15px; border-left: 5px solid #f44336; border-radius: 5px; margin: 10px 0; word-wrap: break-word; overflow-wrap: break-word;'>
+                <strong style='color: #d32f2f; font-size: 16px; display: block; margin-bottom: 8px;'>{rank}. MOST CRITICAL: {area}</strong>
+                {f"<div style='color: #666; font-size: 14px; line-height: 1.4; word-wrap: break-word;'>{desc}</div>" if desc else ""}
+            </div>
+            """, unsafe_allow_html=True)
+        elif rank == 2:
+            st.markdown(f"""
+            <div style='background-color: #fff8e1; padding: 15px; border-left: 5px solid #ff9800; border-radius: 5px; margin: 10px 0; word-wrap: break-word; overflow-wrap: break-word;'>
+                <strong style='color: #f57c00; font-size: 16px; display: block; margin-bottom: 8px;'>{rank}. IMPORTANT: {area}</strong>
+                {f"<div style='color: #666; font-size: 14px; line-height: 1.4; word-wrap: break-word;'>{desc}</div>" if desc else ""}
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style='background-color: #e3f2fd; padding: 15px; border-left: 5px solid #2196f3; border-radius: 5px; margin: 10px 0; word-wrap: break-word; overflow-wrap: break-word;'>
+                <strong style='color: #1976d2; font-size: 16px; display: block; margin-bottom: 8px;'>{rank}. FOCUS AREA: {area}</strong>
+                {f"<div style='color: #666; font-size: 14px; line-height: 1.4; word-wrap: break-word;'>{desc}</div>" if desc else ""}
+            </div>
+            """, unsafe_allow_html=True)

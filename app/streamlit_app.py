@@ -23,7 +23,7 @@ from app.utils.video_downloader import download_youtube_video, download_pro_refe
 from app.utils.video_processor import process_video
 from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
-from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm, check_llm_services
+from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, prepare_data_for_llm, check_llm_services, parse_and_format_analysis, display_formatted_analysis
 from app.utils.visualizer import create_annotated_video
 from app.utils.comparison import create_key_frame_comparison, extract_key_swing_frames
 
@@ -451,29 +451,13 @@ def main():
                     elif llm_services['openai']['available']:
                         st.info("🤖 **Analysis generated using OpenAI**")
 
-                st.markdown(analysis)
-
-                # Add some example drills based on the analysis
-                if "Error:" not in analysis:  # Only show drills if analysis was successful
-                    st.subheader("Recommended Drills")
-                    drill1, drill2 = st.columns(2)
-
-                    with drill1:
-                        st.markdown("**Posture Drill**")
-                        st.markdown("- Stand with your back against a wall")
-                        st.markdown(
-                            "- Take your golf stance while maintaining contact"
-                        )
-                        st.markdown(
-                            "- Practice maintaining this posture during your swing"
-                        )
-
-                    with drill2:
-                        st.markdown("**Tempo Drill**")
-                        st.markdown("- Count '1-2-3' for your backswing")
-                        st.markdown("- Count '1' for your downswing")
-                        st.markdown("- Practice maintaining a 3:1 tempo ratio")
-        
+                # Parse and display the formatted analysis instead of raw markdown
+                if "Error:" not in analysis:
+                    formatted_analysis = parse_and_format_analysis(analysis)
+                    display_formatted_analysis(formatted_analysis)
+                else:
+                    # Show error message if analysis failed
+                    st.error(analysis)
         # Handle key frame analysis (new tab/option)
         if keyframe_analysis_clicked:
             try:
