@@ -33,8 +33,8 @@ def main():
         "\nEnable GPT analysis? (y/n, default: y): ").lower() != 'n'
 
     sample_rate_input = input(
-        "\nFrame skip rate for YOLO (1-10, default: 5, auto-adjusts for videos shorter than 5 seconds): ")
-    sample_rate = 5  # Default value
+        "\nFrame processing rate for YOLO (1-10, default: 1 for all frames): ")
+    sample_rate = 1  # Default value - process all frames
     if sample_rate_input.isdigit():
         sample_rate = max(1, min(10, int(sample_rate_input)))
 

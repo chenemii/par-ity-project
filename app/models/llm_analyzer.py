@@ -61,15 +61,14 @@ def generate_swing_analysis(pose_data, swing_phases, trajectory_data):
         trajectory_data (dict): Dictionary mapping frame indices to trajectory data
         
     Returns:
-        str: Detailed swing analysis and coaching tips
+        str: Detailed swing analysis and coaching tips, or error message
     """
     # Check available services
     services = check_llm_services()
 
-    # If no services are available, return sample analysis
-    if not services['ollama']['available'] and not services['openai'][
-            'available']:
-        return get_sample_analysis()
+    # If no services are available, return error message
+    if not services['ollama']['available'] and not services['openai']['available']:
+        return "Error: No AI services available. Please ensure either Ollama is running or OpenAI API key is configured."
 
     # Prepare data for LLM
     analysis_data = prepare_data_for_llm(pose_data, swing_phases,
@@ -84,7 +83,7 @@ def generate_swing_analysis(pose_data, swing_phases, trajectory_data):
             if analysis:
                 return analysis
         except Exception as e:
-            print(f"Error with Ollama: {str(e)}. Falling back to OpenAI...")
+            print(f"Error with Ollama: {str(e)}")
 
     # Try OpenAI if available
     if services['openai']['available']:
@@ -94,11 +93,10 @@ def generate_swing_analysis(pose_data, swing_phases, trajectory_data):
             if analysis:
                 return analysis
         except Exception as e:
-            print(
-                f"Error with OpenAI: {str(e)}. Using sample analysis instead.")
+            print(f"Error with OpenAI: {str(e)}")
 
-    # If both services failed, return sample analysis
-    return get_sample_analysis()
+    # If both services failed, return error message
+    return "Error: All AI services failed. Please check your API keys and service configurations."
 
 
 def call_ollama_service(prompt, config):
@@ -164,7 +162,7 @@ def call_openai_service(prompt, config):
         try:
             # Try with GPT-4 first
             response = client.chat.completions.create(
-                model="gpt-4-turbo",
+                model="gpt-4o-mini",
                 messages=[{
                     "role":
                     "system",
@@ -209,57 +207,6 @@ def call_openai_service(prompt, config):
     except Exception as e:
         print(f"OpenAI service error: {str(e)}")
         return None
-
-
-def get_sample_analysis():
-    """
-    Return sample analysis when no LLM services are available
-    
-    Returns:
-        str: Sample swing analysis
-    """
-    return """
-## Swing Analysis Summary
-
-Based on the video analysis, here are some observations about your swing:
-
-### Setup Phase
-- Your stance appears slightly wider than shoulder-width, which can provide good stability
-- Your posture shows a good spine angle, though you could bend slightly more from the hips
-- The ball position looks appropriate for the club you're using
-
-### Backswing
-- Your takeaway is smooth with good tempo
-- Your wrist hinge develops appropriately in the backswing
-- Your right elbow could be kept a bit closer to your body for better consistency
-
-### Downswing
-- Good weight transfer from back foot to front foot during the transition
-- Your hips are rotating well through impact
-- The swing plane looks consistent throughout the downswing
-
-### Impact
-- Club face alignment at impact appears slightly open
-- Your head position is stable through impact
-- The club path is on a good line toward the target
-
-### Follow Through
-- Good balance maintained through the finish
-- Full extension of arms after impact
-- Complete rotation of the body toward the target
-
-## Areas for Improvement
-
-1. **Club Face Control**: The slightly open club face at impact suggests you may be prone to slicing the ball. Focus on maintaining a square club face through impact.
-
-2. **Right Elbow Position**: Keeping your right elbow closer to your body during the backswing will help create a more consistent swing plane.
-
-3. **Hip Rotation**: While your hip rotation is good, increasing the speed of rotation could generate more power in your swing.
-
-4. **Wrist Release**: Your wrist release could be more active through impact to generate additional club head speed.
-
-These adjustments should help improve both consistency and distance in your swing.
-"""
 
 
 def prepare_data_for_llm(pose_data, swing_phases, trajectory_data):
@@ -390,12 +337,6 @@ I've analyzed a golf swing and extracted the following data:
     for phase, data in analysis_data["swing_phases"].items():
         prompt += f"- {phase.capitalize()}: Frame {data['frame_index']}, Duration: {data['duration_frames']} frames\n"
 
-    # Add trajectory information
-    prompt += "\n## Trajectory Data\n"
-    if "trajectory" in analysis_data and "club_speed_mph" in analysis_data[
-            "trajectory"]:
-        prompt += f"- Club Speed: {analysis_data['trajectory']['club_speed_mph']:.1f} mph\n"
-
     # Add detailed biomechanical metrics
     prompt += "\n## Swing Mechanics\n"
 
@@ -440,20 +381,6 @@ I've analyzed a golf swing and extracted the following data:
         int(analysis_data["metrics"].get("ground_force_efficiency", 0.7) *
             100))
 
-    # Swing path and clubface metrics
-    prompt += "\n### Club Path & Face Metrics\n"
-    prompt += "- Swing Path (degrees): {} ({})\n".format(
-        analysis_data["metrics"].get("swing_path", 2.5), "Out-to-In"
-        if analysis_data["metrics"].get("swing_path", 0) > 0 else "In-to-Out")
-    prompt += "- Clubface Angle (degrees): {} ({})\n".format(
-        analysis_data["metrics"].get("clubface_angle", 2.1), "Open"
-        if analysis_data["metrics"].get("clubface_angle", 0) > 0 else "Closed")
-    prompt += "- Attack Angle (degrees): {} ({})\n".format(
-        analysis_data["metrics"].get("attack_angle", -4.2), "Descending" if
-        analysis_data["metrics"].get("attack_angle", 0) < 0 else "Ascending")
-    prompt += "- Club Path Consistency: {}%\n".format(
-        int(analysis_data["metrics"].get("club_path_consistency", 0.78) * 100))
-
     # Tempo and timing metrics
     prompt += "\n### Tempo & Timing\n"
     prompt += "- Transition Smoothness: {}%\n".format(
@@ -492,21 +419,6 @@ Based on this detailed biomechanical data, please provide:
    - Physical limitations
    - Technical flaws
 
-3. Prioritized recommendations for improvement:
-   - Top 3-5 most impactful changes to make
-   - Root cause analysis (why these issues are occurring)
-   - Expected improvement in performance from each change
-
-4. Specific drills and exercises addressing each issue:
-   - Technical drills for swing mechanics
-   - Physical exercises to address any biomechanical limitations
-   - Feel-based drills to develop proper movement patterns
-   - Practice routine recommendations
-
-5. Long-term development plan:
-   - Sequential order of what to work on
-   - Benchmarks for measuring progress
-   - Timeline for improvement
 
 Please be specific, detailed, and actionable in your feedback, providing the kind of analysis a professional golf coach would give after a thorough assessment.
 """

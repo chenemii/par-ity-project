@@ -161,14 +161,14 @@ def main():
     else:
         st.sidebar.info("Using sample analysis mode (no LLM required)")
 
-    # Frame skip rate for YOLO
+    # Frame processing rate for YOLO
     sample_rate = st.sidebar.slider(
-        "Frame Skip Rate (YOLO)",
+        "Frame Processing Rate (YOLO)",
         min_value=1,
         max_value=10,
-        value=2,
+        value=1,
         help=
-        "Process every Nth frame. Higher values = faster but less accurate.")
+        "Process every Nth frame. 1 = all frames (most accurate), higher values = faster but less accurate.")
         
     # Pro reference toggle
     enable_pro_comparison = st.sidebar.checkbox(

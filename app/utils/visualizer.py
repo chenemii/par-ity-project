@@ -38,7 +38,7 @@ def create_annotated_video(video_path,
                            swing_phases,
                            trajectory_data,
                            output_dir="downloads",
-                           sample_rate=5):
+                           sample_rate=1):
     """
     Create an annotated video with swing analysis visualizations
     

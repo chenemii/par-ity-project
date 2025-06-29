@@ -162,6 +162,7 @@ def extract_key_swing_frames(video_path, frames, swing_phases=None):
         impact_idx = len(frames) // 2
     
     print(f"Key frame indices (relative to processed frames) - Setup: {setup_idx}, Backswing: {backswing_idx}, Impact: {impact_idx}")
+    print(f"These correspond to original video frames (approx) - Setup: ~{setup_idx * 1}, Backswing: ~{backswing_idx * 1}, Impact: ~{impact_idx * 1} (assuming sample_rate=1)")
     
     # Get rotation angle from the original video file
     rotation_angle = 0

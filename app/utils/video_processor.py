@@ -20,13 +20,13 @@ class Detection:
         self.confidence = confidence
 
 
-def process_video(video_path, sample_rate=5):
+def process_video(video_path, sample_rate=1):
     """
     Process video and detect golfer, club, and ball
     
     Args:
         video_path (str): Path to the video file
-        sample_rate (int): Process every nth frame
+        sample_rate (int): Process every nth frame (default: 1 for all frames)
         
     Returns:
         tuple: (frames, detections)
@@ -50,10 +50,7 @@ def process_video(video_path, sample_rate=5):
 
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    if frame_count < 150:
-        print(f"Short video detected ({frame_count} frames). Processing all frames.")
-        sample_rate = 1
-
+    # Process all frames by default
     frames = []
     detections = []
 

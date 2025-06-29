@@ -1,3 +1,13 @@
+---
+title: Par-ity Project
+emoji: ⛳
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+app_file: app/streamlit_app.py
+pinned: false
+---
+
 # Golf Swing Analysis
 
 A tool for analyzing golf swings using computer vision and AI.
