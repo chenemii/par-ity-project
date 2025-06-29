@@ -6,6 +6,88 @@ import os
 import yt_dlp
 
 
+def cleanup_video_file(video_path):
+    """
+    Delete a specific video file after processing
+    
+    Args:
+        video_path (str): Path to the video file to delete
+        
+    Returns:
+        bool: True if file was deleted successfully, False otherwise
+    """
+    try:
+        if os.path.exists(video_path):
+            os.remove(video_path)
+            print(f"Cleaned up video file: {video_path}")
+            return True
+        else:
+            print(f"Video file not found for cleanup: {video_path}")
+            return False
+    except Exception as e:
+        print(f"Error cleaning up video file {video_path}: {str(e)}")
+        return False
+
+
+def cleanup_downloads_directory(output_dir="downloads", keep_annotated=True):
+    """
+    Clean up downloaded videos from the downloads directory
+    
+    Args:
+        output_dir (str): Directory containing downloaded videos
+        keep_annotated (bool): Whether to keep annotated videos (default: True)
+        
+    Returns:
+        dict: Cleanup results with files removed and space freed
+    """
+    try:
+        if not os.path.exists(output_dir):
+            return {"files_removed": 0, "space_freed_mb": 0}
+            
+        files_removed = 0
+        space_freed = 0
+        
+        for filename in os.listdir(output_dir):
+            file_path = os.path.join(output_dir, filename)
+            
+            # Skip if not a file
+            if not os.path.isfile(file_path):
+                continue
+                
+            # Skip annotated videos if keep_annotated is True
+            if keep_annotated and "_annotated" in filename:
+                continue
+                
+            # Skip pro reference videos (they can be reused)
+            if "pro_reference" in filename:
+                continue
+                
+            # Get file size before deletion
+            try:
+                file_size = os.path.getsize(file_path)
+                space_freed += file_size
+                
+                # Remove the file
+                os.remove(file_path)
+                files_removed += 1
+                print(f"Cleaned up: {filename}")
+                
+            except Exception as e:
+                print(f"Error removing {filename}: {str(e)}")
+                
+        # Convert bytes to MB
+        space_freed_mb = space_freed / (1024 * 1024)
+        
+        return {
+            "files_removed": files_removed,
+            "space_freed_mb": round(space_freed_mb, 2)
+        }
+        
+    except Exception as e:
+        print(f"Error during cleanup: {str(e)}")
+        return {"error": str(e)}
+
+
 def download_youtube_video(url, output_dir="downloads"):
     """
     Download a YouTube video from the provided URL using yt-dlp

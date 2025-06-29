@@ -13,7 +13,7 @@ load_dotenv()
 # Add the app directory to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.video_downloader import download_youtube_video
+from app.utils.video_downloader import download_youtube_video, cleanup_video_file
 from app.utils.video_processor import process_video
 from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
@@ -38,6 +38,7 @@ def main():
     if sample_rate_input.isdigit():
         sample_rate = max(1, min(10, int(sample_rate_input)))
 
+    video_path = None  # Initialize video_path for cleanup
     try:
         # Step 3: Download the video
         print("\nDownloading video...")
@@ -95,7 +96,11 @@ def main():
 
     except Exception as e:
         print(f"\nError: {str(e)}")
-        return
+    finally:
+        # Clean up the original downloaded video file after processing
+        if video_path:
+            print("\nCleaning up downloaded video file...")
+            cleanup_video_file(video_path)
 
 
 if __name__ == "__main__":

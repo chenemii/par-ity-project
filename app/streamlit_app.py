@@ -19,7 +19,7 @@ load_dotenv()
 # Add the app directory to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.video_downloader import download_youtube_video, download_pro_reference
+from app.utils.video_downloader import download_youtube_video, download_pro_reference, cleanup_video_file, cleanup_downloads_directory
 from app.utils.video_processor import process_video
 from app.models.pose_estimator import analyze_pose
 from app.models.swing_analyzer import segment_swing, analyze_trajectory
@@ -92,6 +92,7 @@ def main():
     """Main Streamlit application"""
     st.title("Par-ity Project: Golf Swing Analysis 🏌️‍♀️")
     st.write("Founded to address the gender gap in golf participation and access to quality coaching resources, Par-ity Project is a technology-driven initiative empowering girls in golf through innovative AI based swing analysis. This technology uses computer vision and machine learning algorithms to analyze golf swings and provide personalized feedback to improve technique and performance.")
+    
     # Initialize session state for storing analysis results
     if 'video_analyzed' not in st.session_state:
         st.session_state.video_analyzed = False
@@ -107,9 +108,31 @@ def main():
         }
     if 'pro_reference_path' not in st.session_state:
         st.session_state.pro_reference_path = None
+    
+    # Add session cleanup - clean up old files when starting a new session
+    if 'session_initialized' not in st.session_state:
+        cleanup_result = cleanup_downloads_directory(keep_annotated=True)
+        if cleanup_result.get('files_removed', 0) > 0:
+            st.info(f"🗑️ Cleaned up {cleanup_result['files_removed']} old files ({cleanup_result['space_freed_mb']} MB freed)")
+        st.session_state.session_initialized = True
 
     # Sidebar for configuration
     st.sidebar.title("Configuration")
+
+    # Add Reset Session button
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🗑️ Reset Session & Clean Files", help="Clear all session data and remove downloaded files"):
+        # Clean up downloads directory
+        cleanup_result = cleanup_downloads_directory(keep_annotated=False)  # Remove all files including annotated
+        
+        # Clear session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        
+        st.sidebar.success(f"Session reset! Cleaned {cleanup_result.get('files_removed', 0)} files ({cleanup_result.get('space_freed_mb', 0)} MB freed)")
+        st.rerun()
+    
+    st.sidebar.markdown("---")
 
     # Check available LLM services
     llm_services = check_llm_services()
@@ -289,6 +312,10 @@ def main():
                 'prompt': prompt
             }
 
+            # Clean up the original video file after processing (keep frames in memory)
+            st.info("🗑️ Cleaning up original video file to save space...")
+            cleanup_video_file(video_path)
+
             # Present the options after analysis
             st.subheader("What would you like to do next?")
             options_col1, options_col2, options_col3 = st.columns(3)
@@ -311,6 +338,9 @@ def main():
         except Exception as e:
             st.error(f"Error during analysis: {str(e)}")
             st.session_state.video_analyzed = False
+            # Clean up on error as well
+            if video_path and os.path.exists(video_path):
+                cleanup_video_file(video_path)
 
     # Show action buttons and their results (only if analysis is complete)
     if st.session_state.video_analyzed:
