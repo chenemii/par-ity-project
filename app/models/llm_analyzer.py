@@ -457,27 +457,35 @@ I've analyzed a golf swing and extracted the following data:
 
 ## ANALYSIS INSTRUCTIONS
 
-Using the professional benchmarks above as your calibration reference, provide:
+Using the professional benchmarks above as your calibration reference, provide your analysis in the following EXACT structured format:
 
-1. **Performance Classification**: Start with "Performance Classification: [Professional/Advanced/Intermediate/Beginner]" based on how the player's metrics compare to professional standards.
+**PERFORMANCE_CLASSIFICATION:** [Professional/Advanced/Intermediate/Beginner]
 
-2. **Comparative Analysis**: 
-   - **Strengths** (metrics that meet/exceed professional benchmarks):
-     • List specific strong points (use bullet points)
-     • Reference professional benchmark values
-   
-   - **Areas for Improvement** (metrics significantly below professional standards):
-     • List specific weaknesses (use bullet points)
-     • Note the gap from professional standards
+**STRENGTHS:**
+• [Specific strength with metric comparison to professional standard]
+• [Another strength with professional benchmark reference]
+• [Third strength if applicable]
 
-3. **Priority Improvement Areas**: List exactly 3 areas in order of importance:
-   1. [Most Critical] - Describe what's wrong and what it should be like
-   2. [Important] - Describe what's wrong and what it should be like  
-   3. [Focus Area] - Describe what's wrong and what it should be like
+**WEAKNESSES:**
+• [Specific weakness with gap from professional standard]
+• [Another weakness with professional benchmark comparison]
+• [Third weakness if applicable]
 
-Remember: Professional golfers consistently achieve the benchmark metrics shown above. Use these as the gold standard for what constitutes excellent golf swing mechanics, while being realistic about the progression needed to reach those levels.
+**PRIORITY_IMPROVEMENTS:**
+1. [Most Critical] Topic Name - Detailed description of current issue and what should be improved to reach professional standard
+2. [Important] Topic Name - Detailed description of current issue and desired improvement outcome
+3. [Focus Area] Topic Name - Detailed description of current issue and target improvement goal
 
-Provide your analysis in the structured format above for optimal coaching feedback.
+IMPORTANT FORMATTING RULES:
+- Use the exact headers shown above (PERFORMANCE_CLASSIFICATION, STRENGTHS, WEAKNESSES, PRIORITY_IMPROVEMENTS)
+- For strengths and weaknesses, use bullet points (•) 
+- For priority improvements, use numbered format (1., 2., 3.) with priority level in brackets
+- Each priority improvement must have: [Priority Level] Topic Name - Full description
+- Provide complete sentences and descriptions - no incomplete thoughts
+- Compare all metrics to the professional benchmarks provided above
+- Be specific about what needs improvement and what the target should be
+
+Remember: Professional golfers consistently achieve the benchmark metrics shown above. Use these as the gold standard for what constitutes excellent golf swing mechanics.
 """
 
     return prompt
@@ -501,154 +509,153 @@ def parse_and_format_analysis(raw_analysis):
         'priority_improvements': []
     }
     
-    # Try to extract classification from the analysis
-    classification_patterns = [
-        r'(?:Performance Classification|Classification|Level).*?:\s*(Professional|Advanced|Intermediate|Beginner)',
-        r'(Professional|Advanced|Intermediate|Beginner)\s+(?:Level|Amateur)',
-        r'classified as\s+(Professional|Advanced|Intermediate|Beginner)',
-        r'(?:at|as)\s+(?:an?\s+)?(Professional|Advanced|Intermediate|Beginner)\s+level'
-    ]
+    # Extract classification using the new structured format
+    classification_match = re.search(r'\*\*PERFORMANCE_CLASSIFICATION:\*\*\s*([A-Za-z]+)', raw_analysis, re.IGNORECASE)
+    if classification_match:
+        formatted_analysis['classification'] = classification_match.group(1).title()
+    else:
+        # Fallback to original patterns
+        classification_patterns = [
+            r'(?:Performance Classification|Classification|Level).*?:\s*(Professional|Advanced|Intermediate|Beginner)',
+            r'(Professional|Advanced|Intermediate|Beginner)\s+(?:Level|Amateur)',
+            r'classified as\s+(Professional|Advanced|Intermediate|Beginner)',
+            r'(?:at|as)\s+(?:an?\s+)?(Professional|Advanced|Intermediate|Beginner)\s+level'
+        ]
+        
+        for pattern in classification_patterns:
+            match = re.search(pattern, raw_analysis, re.IGNORECASE)
+            if match:
+                formatted_analysis['classification'] = match.group(1).title()
+                break
     
-    classification_found = False
-    for pattern in classification_patterns:
-        match = re.search(pattern, raw_analysis, re.IGNORECASE)
-        if match:
-            formatted_analysis['classification'] = match.group(1).title()
-            classification_found = True
-            break
+    # Extract strengths using the new structured format
+    strengths_match = re.search(r'\*\*STRENGTHS:\*\*\s*(.*?)(?=\*\*WEAKNESSES:\*\*|\*\*PRIORITY_IMPROVEMENTS:\*\*|$)', raw_analysis, re.IGNORECASE | re.DOTALL)
+    if strengths_match:
+        strengths_text = strengths_match.group(1)
+        # Extract bullet points
+        strength_items = re.findall(r'•\s*([^\n•]+)', strengths_text)
+        formatted_analysis['strengths'] = [item.strip() for item in strength_items if item.strip()]
     
-    # If no classification found, try to infer from content
-    if not classification_found:
-        analysis_lower = raw_analysis.lower()
-        if 'professional' in analysis_lower and ('meets' in analysis_lower or 'exceeds' in analysis_lower):
-            formatted_analysis['classification'] = 'Professional'
-        elif 'advanced' in analysis_lower or ('within 10' in analysis_lower and 'pro' in analysis_lower):
-            formatted_analysis['classification'] = 'Advanced'
-        elif 'beginner' in analysis_lower or ('30%' in analysis_lower and 'below' in analysis_lower):
-            formatted_analysis['classification'] = 'Beginner'
-        else:
-            formatted_analysis['classification'] = 'Intermediate'
+    # Extract weaknesses using the new structured format
+    weaknesses_match = re.search(r'\*\*WEAKNESSES:\*\*\s*(.*?)(?=\*\*PRIORITY_IMPROVEMENTS:\*\*|$)', raw_analysis, re.IGNORECASE | re.DOTALL)
+    if weaknesses_match:
+        weaknesses_text = weaknesses_match.group(1)
+        # Extract bullet points
+        weakness_items = re.findall(r'•\s*([^\n•]+)', weaknesses_text)
+        formatted_analysis['weaknesses'] = [item.strip() for item in weakness_items if item.strip()]
     
-    # Extract strengths and weaknesses
-    strengths_section = ""
-    weaknesses_section = ""
+    # Extract priority improvements using the new structured format
+    priority_match = re.search(r'\*\*PRIORITY_IMPROVEMENTS:\*\*\s*(.*?)$', raw_analysis, re.IGNORECASE | re.DOTALL)
+    if priority_match:
+        priority_text = priority_match.group(1)
+        # Extract numbered items with priority levels and descriptions
+        priority_items = re.findall(r'(\d+)\.\s*\[(.*?)\]\s*(.*?)(?=\d+\.\s*\[|\Z)', priority_text, re.DOTALL)
+        for num, priority_level, description in priority_items[:3]:  # Limit to 3
+            # Clean up the description
+            description = description.strip()
+            # Remove any trailing incomplete sentences
+            if description.endswith('...') or len(description.split('.')[-1].strip()) < 5:
+                sentences = description.split('.')
+                if len(sentences) > 1:
+                    description = '.'.join(sentences[:-1]) + '.'
+            
+            formatted_analysis['priority_improvements'].append({
+                'rank': int(num),
+                'priority_level': priority_level.strip(),
+                'description': f"[{priority_level.strip()}] {description}"
+            })
     
-    # Look for strengths/weaknesses sections
-    strengths_patterns = [
-        r'(?:Strengths|Strong Points|Positives|Meets.*Standards)[\s\S]*?(?=(?:Weak|Priority|Improvement|Areas|$))',
-        r'(?:Professional Level|Exceeds.*Standards)[\s\S]*?(?=(?:Below|Weak|Priority|$))'
-    ]
-    
-    weaknesses_patterns = [
-        r'(?:Weaknesses|Weak|Areas.*Improvement|Priority.*Areas|Below.*Standards)[\s\S]*?(?=(?:Recommendation|Priority|$))',
-        r'(?:Critical|Important|Significant.*gaps?)[\s\S]*?(?=(?:Recommendation|$))'
-    ]
-    
-    for pattern in strengths_patterns:
-        match = re.search(pattern, raw_analysis, re.IGNORECASE)
-        if match:
-            strengths_section = match.group(0)
-            break
-    
-    for pattern in weaknesses_patterns:
-        match = re.search(pattern, raw_analysis, re.IGNORECASE)
-        if match:
-            weaknesses_section = match.group(0)
-            break
-    
-    # Parse strengths from the section
-    if strengths_section:
-        strength_items = re.findall(r'[-•]\s*([^-•\n]+)', strengths_section)
-        formatted_analysis['strengths'] = [item.strip() for item in strength_items[:4]]  # Limit to 4
-    
-    # If no bullet points found, try to extract from general content
+    # Fallback parsing if structured format wasn't used
     if not formatted_analysis['strengths']:
-        # Look for positive indicators in the full text
-        positive_indicators = [
-            r'(?:meets|exceeds|matches).*professional.*(?:standard|benchmark)',
-            r'(?:excellent|good|strong).*(?:posture|rotation|extension|timing)',
-            r'(?:consistent|solid).*(?:mechanics|form|technique)',
-            r'(?:efficient|effective).*(?:transfer|generation|sequence)'
+        # Try original parsing methods for strengths
+        strengths_patterns = [
+            r'(?:Strengths|Strong Points|Positives|Meets.*Standards)[\s\S]*?(?=(?:Weak|Priority|Improvement|Areas|$))',
+            r'(?:Professional Level|Exceeds.*Standards)[\s\S]*?(?=(?:Below|Weak|Priority|$))'
         ]
         
-        for pattern in positive_indicators:
-            matches = re.findall(pattern, raw_analysis, re.IGNORECASE)
-            for match in matches[:2]:  # Limit to avoid overwhelming
-                formatted_analysis['strengths'].append(match.strip())
+        for pattern in strengths_patterns:
+            match = re.search(pattern, raw_analysis, re.IGNORECASE)
+            if match:
+                strengths_section = match.group(0)
+                strength_items = re.findall(r'[-•]\s*([^-•\n]+)', strengths_section)
+                formatted_analysis['strengths'] = [item.strip() for item in strength_items[:4]]
+                break
     
-    # Parse weaknesses from the section
-    if weaknesses_section:
-        weakness_items = re.findall(r'[-•]\s*([^-•\n]+)', weaknesses_section)
-        formatted_analysis['weaknesses'] = [item.strip() for item in weakness_items[:4]]  # Limit to 4
-    
-    # If no bullet points found, try to extract from general content
     if not formatted_analysis['weaknesses']:
-        # Look for negative indicators in the full text
-        negative_indicators = [
-            r'(?:below|under).*professional.*(?:standard|benchmark)',
-            r'(?:poor|weak|limited).*(?:posture|rotation|extension|timing)',
-            r'(?:inconsistent|unstable).*(?:mechanics|form|technique)',
-            r'(?:inefficient|ineffective).*(?:transfer|generation|sequence)'
+        # Try original parsing methods for weaknesses
+        weaknesses_patterns = [
+            r'(?:Weaknesses|Weak|Areas.*Improvement|Priority.*Areas|Below.*Standards)[\s\S]*?(?=(?:Recommendation|Priority|$))',
+            r'(?:Critical|Important|Significant.*gaps?)[\s\S]*?(?=(?:Recommendation|$))'
         ]
         
-        for pattern in negative_indicators:
-            matches = re.findall(pattern, raw_analysis, re.IGNORECASE)
-            for match in matches[:2]:  # Limit to avoid overwhelming
-                formatted_analysis['weaknesses'].append(match.strip())
+        for pattern in weaknesses_patterns:
+            match = re.search(pattern, raw_analysis, re.IGNORECASE)
+            if match:
+                weaknesses_section = match.group(0)
+                weakness_items = re.findall(r'[-•]\s*([^-•\n]+)', weaknesses_section)
+                formatted_analysis['weaknesses'] = [item.strip() for item in weakness_items[:4]]
+                break
     
-    # Extract priority improvements
-    priority_patterns = [
-        r'(?:Priority.*Improvement|Critical.*Areas?)[\s\S]*?(?=(?:Recommendation|$))',
-        r'(?:1\..*?2\..*?3\.)',  # Numbered list
-        r'(?:Critical|Important|Fine-tuning)[\s\S]*?(?=(?:Critical|Important|Fine-tuning|$))'
-    ]
-    
-    for pattern in priority_patterns:
-        match = re.search(pattern, raw_analysis, re.IGNORECASE | re.DOTALL)
-        if match:
-            priority_text = match.group(0)
-            # Extract numbered items
-            numbered_items = re.findall(r'(\d+)\.\s*([^1-9\n]+)', priority_text)
-            for num, item in numbered_items[:3]:  # Limit to 3
-                formatted_analysis['priority_improvements'].append({
-                    'rank': int(num),
-                    'description': item.strip()
-                })
-            break
-    
-    # If no numbered priorities found, create generic ones based on classification
     if not formatted_analysis['priority_improvements']:
-        if formatted_analysis['classification'] == 'Beginner':
-            formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': 'Focus on fundamental posture and setup position'},
-                {'rank': 2, 'description': 'Develop consistent tempo and timing'},
-                {'rank': 3, 'description': 'Improve weight shift and balance throughout swing'}
-            ]
-        elif formatted_analysis['classification'] == 'Intermediate':
-            formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': 'Enhance kinematic sequence and body rotation'},
-                {'rank': 2, 'description': 'Improve clubface control and swing path consistency'},
-                {'rank': 3, 'description': 'Optimize energy transfer efficiency'}
-            ]
-        elif formatted_analysis['classification'] == 'Advanced':
-            formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': 'Fine-tune transition smoothness and timing'},
-                {'rank': 2, 'description': 'Optimize power accumulation and release'},
-                {'rank': 3, 'description': 'Enhance consistency under pressure'}
-            ]
-        else:  # Professional
-            formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': 'Maintain current excellence with minor adjustments'},
-                {'rank': 2, 'description': 'Focus on course management and strategy'},
-                {'rank': 3, 'description': 'Continue physical conditioning for longevity'}
-            ]
+        # Try original parsing methods for priorities
+        priority_patterns = [
+            r'(?:Priority.*Improvement|Critical.*Areas?)[\s\S]*?(?=(?:Recommendation|$))',
+            r'(?:1\..*?2\..*?3\.)',  # Numbered list
+            r'(?:Critical|Important|Fine-tuning)[\s\S]*?(?=(?:Critical|Important|Fine-tuning|$))'
+        ]
+        
+        for pattern in priority_patterns:
+            match = re.search(pattern, raw_analysis, re.IGNORECASE | re.DOTALL)
+            if match:
+                priority_text = match.group(0)
+                # Extract numbered items with better parsing
+                numbered_items = re.findall(r'(\d+)\.\s*([^1-9]+?)(?=\d+\.|$)', priority_text, re.DOTALL)
+                for num, item in numbered_items[:3]:  # Limit to 3
+                    # Clean up the item text
+                    item = item.strip()
+                    # Remove any trailing incomplete sentences
+                    sentences = item.split('.')
+                    if len(sentences) > 1 and len(sentences[-1].strip()) < 10:
+                        item = '.'.join(sentences[:-1]) + '.'
+                    
+                    formatted_analysis['priority_improvements'].append({
+                        'rank': int(num),
+                        'description': item
+                    })
+                break
     
-    # Ensure we have some default content if parsing failed
+    # If still no content found, use defaults based on classification
     if not formatted_analysis['strengths']:
         formatted_analysis['strengths'] = ['Swing analysis completed successfully']
     
     if not formatted_analysis['weaknesses']:
         formatted_analysis['weaknesses'] = ['Areas for improvement identified']
+    
+    if not formatted_analysis['priority_improvements']:
+        if formatted_analysis['classification'] == 'Beginner':
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': '[Most Critical] Fundamental Posture and Setup - Focus on establishing proper spine angle and athletic stance throughout the swing for better consistency and power transfer.'},
+                {'rank': 2, 'description': '[Important] Tempo and Timing Development - Develop consistent swing rhythm and timing to improve sequence and control.'},
+                {'rank': 3, 'description': '[Focus Area] Weight Shift and Balance - Improve weight transfer from back foot to front foot during swing for better power and stability.'}
+            ]
+        elif formatted_analysis['classification'] == 'Intermediate':
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': '[Most Critical] Kinematic Sequence Enhancement - Improve body rotation coordination to generate more power and consistency.'},
+                {'rank': 2, 'description': '[Important] Clubface Control - Enhance swing path consistency for better ball striking accuracy.'},
+                {'rank': 3, 'description': '[Focus Area] Energy Transfer Efficiency - Optimize power transfer throughout the swing to maximize distance.'}
+            ]
+        elif formatted_analysis['classification'] == 'Advanced':
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': '[Most Critical] Transition Smoothness - Fine-tune timing and tempo to achieve professional-level consistency.'},
+                {'rank': 2, 'description': '[Important] Power Accumulation - Optimize energy storage and release for maximum clubhead speed.'},
+                {'rank': 3, 'description': '[Focus Area] Pressure Performance - Enhance consistency under competitive conditions.'}
+            ]
+        else:  # Professional
+            formatted_analysis['priority_improvements'] = [
+                {'rank': 1, 'description': '[Most Critical] Technical Refinement - Maintain excellence with minor adjustments to specific mechanics.'},
+                {'rank': 2, 'description': '[Important] Strategic Optimization - Focus on course management and scoring opportunities.'},
+                {'rank': 3, 'description': '[Focus Area] Physical Conditioning - Continue fitness work for career longevity and peak performance.'}
+            ]
     
     return formatted_analysis
 
@@ -765,48 +772,75 @@ def display_formatted_analysis(analysis_data):
         rank = priority['rank']
         description = priority['description']
         
-        # Extract improvement area and description if possible
-        if ':' in description:
-            area, desc = description.split(':', 1)
-            area = area.strip()
-            desc = desc.strip()
-        elif '-' in description:
-            parts = description.split('-', 1)
-            if len(parts) == 2:
-                area = parts[0].strip()
-                desc = parts[1].strip()
-            else:
-                area = description
-                desc = ""
+        # Better extraction of improvement area and description
+        area = ""
+        desc = description
+        
+        # Try different patterns to extract the main topic
+        if '[Most Critical]' in description or '[Important]' in description or '[Focus Area]' in description:
+            # Pattern: [Priority Level] Topic - Description
+            pattern = r'\[(.*?)\]\s*(.*?)(?:\s*-\s*(.*))?$'
+            match = re.search(pattern, description)
+            if match:
+                priority_level = match.group(1)
+                area = match.group(2).strip()
+                desc = match.group(3).strip() if match.group(3) else ""
+        elif ':' in description:
+            # Pattern: Topic: Description
+            parts = description.split(':', 1)
+            area = parts[0].strip()
+            desc = parts[1].strip()
+        elif ' - ' in description:
+            # Pattern: Topic - Description
+            parts = description.split(' - ', 1)
+            area = parts[0].strip()
+            desc = parts[1].strip()
         else:
-            # Try to extract first sentence as area, rest as description
-            sentences = description.split('. ')
-            if len(sentences) > 1:
-                area = sentences[0]
-                desc = '. '.join(sentences[1:])
+            # Try to extract first meaningful phrase as area
+            words = description.split()
+            if len(words) > 5:
+                # Take first 3-5 words as the area
+                area = ' '.join(words[:4])
+                desc = ' '.join(words[4:])
             else:
                 area = description
                 desc = ""
         
-        # Color code by priority with better styling
+        # Clean up area and description
+        area = area.replace('[Most Critical]', '').replace('[Important]', '').replace('[Focus Area]', '').strip()
+        
+        # Ensure we have meaningful content
+        if not area or len(area) < 5:
+            area = f"Priority {rank} Improvement"
+        
+        if not desc or len(desc) < 10:
+            # Provide a more complete description based on the area
+            if 'posture' in area.lower():
+                desc = "Work on maintaining proper spine angle and athletic stance throughout the swing for better consistency and power transfer."
+            elif 'tempo' in area.lower() or 'timing' in area.lower():
+                desc = "Focus on developing a smooth, consistent rhythm that allows for proper sequencing of body movements."
+            elif 'rotation' in area.lower():
+                desc = "Improve the coordination and range of motion in your body turn to generate more power and accuracy."
+            elif 'weight' in area.lower() or 'shift' in area.lower():
+                desc = "Practice transferring weight from back foot to front foot during the swing for better balance and power."
+            elif 'knee' in area.lower():
+                desc = "Work on maintaining proper knee flex and stability throughout the swing for better foundation and consistency."
+            elif 'hip' in area.lower():
+                desc = "Focus on improving hip mobility and thrust timing to enhance power generation and sequencing."
+            elif 'chest' in area.lower():
+                desc = "Improve chest rotation efficiency to better coordinate upper body movement with the swing sequence."
+            else:
+                desc = description  # Use the full description if we can't categorize it
+        
+        # Display using Streamlit's native components
         if rank == 1:
-            st.markdown(f"""
-            <div style='background-color: #ffebee; padding: 15px; border-left: 5px solid #f44336; border-radius: 5px; margin: 10px 0; word-wrap: break-word; overflow-wrap: break-word;'>
-                <strong style='color: #d32f2f; font-size: 16px; display: block; margin-bottom: 8px;'>{rank}. MOST CRITICAL: {area}</strong>
-                {f"<div style='color: #666; font-size: 14px; line-height: 1.4; word-wrap: break-word;'>{desc}</div>" if desc else ""}
-            </div>
-            """, unsafe_allow_html=True)
+            st.error(f"**{rank}. MOST CRITICAL: {area}**")
+            st.write(desc)
         elif rank == 2:
-            st.markdown(f"""
-            <div style='background-color: #fff8e1; padding: 15px; border-left: 5px solid #ff9800; border-radius: 5px; margin: 10px 0; word-wrap: break-word; overflow-wrap: break-word;'>
-                <strong style='color: #f57c00; font-size: 16px; display: block; margin-bottom: 8px;'>{rank}. IMPORTANT: {area}</strong>
-                {f"<div style='color: #666; font-size: 14px; line-height: 1.4; word-wrap: break-word;'>{desc}</div>" if desc else ""}
-            </div>
-            """, unsafe_allow_html=True)
+            st.warning(f"**{rank}. IMPORTANT: {area}**")
+            st.write(desc)
         else:
-            st.markdown(f"""
-            <div style='background-color: #e3f2fd; padding: 15px; border-left: 5px solid #2196f3; border-radius: 5px; margin: 10px 0; word-wrap: break-word; overflow-wrap: break-word;'>
-                <strong style='color: #1976d2; font-size: 16px; display: block; margin-bottom: 8px;'>{rank}. FOCUS AREA: {area}</strong>
-                {f"<div style='color: #666; font-size: 14px; line-height: 1.4; word-wrap: break-word;'>{desc}</div>" if desc else ""}
-            </div>
-            """, unsafe_allow_html=True)
+            st.info(f"**{rank}. FOCUS AREA: {area}**")
+            st.write(desc)
+        
+        st.write("")  # Add spacing between items
