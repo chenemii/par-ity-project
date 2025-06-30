@@ -7,6 +7,8 @@ import httpx
 from openai import OpenAI
 import streamlit as st
 import re
+import numpy as np
+from app.models.pose_estimator import calculate_joint_angles
 
 
 def check_llm_services():
@@ -210,282 +212,425 @@ def call_openai_service(prompt, config):
         return None
 
 
-def prepare_data_for_llm(pose_data, swing_phases, trajectory_data):
+def prepare_data_for_llm(pose_data, swing_phases, trajectory_data=None):
     """
     Prepare swing data for LLM analysis
     
     Args:
         pose_data (dict): Dictionary mapping frame indices to pose keypoints
         swing_phases (dict): Dictionary mapping phase names to lists of frame indices
-        trajectory_data (dict): Dictionary mapping frame indices to trajectory data
+        trajectory_data (dict, optional): Ball trajectory data
         
     Returns:
-        dict: Processed data for LLM analysis
+        dict: Formatted swing data for LLM
     """
-    analysis_data = {"swing_phases": {}, "joint_angles": {}, "trajectory": {}}
-
-    # Process swing phases
-    for phase, frames in swing_phases.items():
-        if frames:
-            # Get a representative frame for each phase
-            mid_frame = frames[len(frames) // 2]
-
-            # Get joint angles for the representative frame
-            if mid_frame in pose_data:
-                keypoints = pose_data[mid_frame]
-
-                # Calculate key metrics for each phase
-                analysis_data["swing_phases"][phase] = {
-                    "frame_index": mid_frame,
-                    "duration_frames": len(frames)
-                }
-
-    # Process trajectory data
-    impact_frames = swing_phases.get("impact", [])
-    if impact_frames:
-        impact_frame = impact_frames[len(impact_frames) // 2]
-        if impact_frame in trajectory_data:
-            impact_data = trajectory_data[impact_frame]
-            if "club_speed" in impact_data and impact_data["club_speed"]:
-                analysis_data["trajectory"]["club_speed_mph"] = impact_data[
-                    "club_speed"]
-
-    # Calculate backswing and downswing durations if available
-    backswing_frames = swing_phases.get("backswing", [])
+    
+    # Calculate actual biomechanical metrics from pose data
+    bio_metrics = calculate_biomechanical_metrics(pose_data, swing_phases)
+    
+    # Calculate phase durations and timing metrics
+    setup_frames = swing_phases.get("setup", [])
+    backswing_frames = swing_phases.get("backswing", []) 
     downswing_frames = swing_phases.get("downswing", [])
-
-    backswing_duration = None
-    downswing_duration = None
-
-    if backswing_frames:
-        # Assuming 30 fps video
-        backswing_duration = len(backswing_frames) / 30.0
-
-    if downswing_frames:
-        # Assuming 30 fps video
-        downswing_duration = len(downswing_frames) / 30.0
-
-    # Calculate tempo ratio if both durations are available
-    tempo_ratio = None
-    if backswing_duration and downswing_duration and downswing_duration > 0:
-        tempo_ratio = backswing_duration / downswing_duration
-
-    # Add comprehensive metrics with default values or calculated values
-    # These values would normally be calculated from pose and trajectory data
-    analysis_data["metrics"] = {
-        # Core body mechanics
-        "tempo_ratio": tempo_ratio or 3.0,  # Backswing to downswing time ratio
-        "swing_plane_consistency": 0.85,  # 0-1 scale
-        "weight_shift": 0.7,  # 0-1 scale
-        "hip_rotation": 45,  # degrees
-        "shoulder_rotation": 90,  # degrees
-        "posture_score": 0.8,  # 0-1 scale
-
-        # Upper body mechanics
-        "arm_extension": 0.8,  # 0-1 scale
-        "wrist_hinge": 80,  # degrees
-        "chest_rotation_efficiency": 0.75,  # 0-1 scale
-        "head_movement_lateral": 2.5,  # inches
-        "head_movement_vertical": 1.8,  # inches
-
-        # Lower body mechanics
-        "knee_flexion_address": 25,  # degrees
-        "knee_flexion_impact": 30,  # degrees
-        "hip_thrust": 0.6,  # 0-1 scale
-        "ground_force_efficiency": 0.7,  # 0-1 scale
-
-        # Club path and face metrics
-        "swing_path":
-        2.5,  # degrees (positive = out-to-in, negative = in-to-out)
-        "clubface_angle": 2.1,  # degrees (positive = open, negative = closed)
-        "attack_angle":
-        -4.2,  # degrees (negative = descending, positive = ascending)
-        "club_path_consistency": 0.78,  # 0-1 scale
-
-        # Tempo and timing metrics
-        "transition_smoothness": 0.75,  # 0-1 scale
-        "backswing_duration": backswing_duration or 0.9,  # seconds
-        "downswing_duration": downswing_duration or 0.3,  # seconds
-        "kinematic_sequence": 0.82,  # 0-1 scale
-
-        # Efficiency and power metrics
-        "energy_transfer": 0.78,  # 0-1 scale
-        "potential_distance": 240,  # yards
-        "power_accumulation": 0.75,  # 0-1 scale
-        "speed_generation": "Arms-dominant"  # String description
+    impact_frames = swing_phases.get("impact", [])
+    follow_through_frames = swing_phases.get("follow_through", [])
+    
+    # Calculate tempo ratio (downswing:backswing)
+    backswing_duration = len(backswing_frames) if backswing_frames else 1
+    downswing_duration = len(downswing_frames) if downswing_frames else 1
+    tempo_ratio = downswing_duration / backswing_duration if backswing_duration > 0 else 1.0
+    
+    # Calculate total swing duration and club speed estimates
+    total_frames = len(setup_frames) + len(backswing_frames) + len(downswing_frames) + len(impact_frames) + len(follow_through_frames)
+    
+    # Estimate club speed based on downswing duration (faster downswing = higher speed)
+    # Professional downswings are typically 10-15 frames at 30fps
+    if downswing_duration > 0:
+        speed_factor = max(0.5, min(2.0, 12.0 / downswing_duration))  # Normalize around 12 frames
+        estimated_club_speed = 70 + (speed_factor * 40)  # Base 70 mph, up to 110 mph
+    else:
+        estimated_club_speed = 85
+    
+    # Process joint angles if available
+    joint_angles = {}
+    if pose_data:
+        # Get a representative frame for joint analysis
+        rep_frame = None
+        if impact_frames:
+            rep_frame = impact_frames[0]
+        elif downswing_frames:
+            rep_frame = downswing_frames[len(downswing_frames) // 2]
+        elif backswing_frames:
+            rep_frame = backswing_frames[-1]
+        
+        if rep_frame and rep_frame in pose_data:
+            try:
+                from app.models.pose_estimator import calculate_joint_angles
+                joint_angles = calculate_joint_angles(pose_data[rep_frame])
+            except Exception as e:
+                print(f"Error calculating joint angles: {e}")
+                joint_angles = {}
+    
+    # Prepare the structured data
+    swing_data = {
+        "swing_phases": {
+            "setup": {
+                "frame_count": len(setup_frames),
+                "duration_ms": len(setup_frames) * 33.33  # Assuming 30fps
+            },
+            "backswing": {
+                "frame_count": len(backswing_frames),
+                "duration_ms": len(backswing_frames) * 33.33
+            },
+            "downswing": {
+                "frame_count": len(downswing_frames),
+                "duration_ms": len(downswing_frames) * 33.33
+            },
+            "impact": {
+                "frame_count": len(impact_frames),
+                "duration_ms": len(impact_frames) * 33.33
+            },
+            "follow_through": {
+                "frame_count": len(follow_through_frames),
+                "duration_ms": len(follow_through_frames) * 33.33
+            }
+        },
+        
+        "timing_metrics": {
+            "tempo_ratio": round(tempo_ratio, 2),
+            "total_swing_frames": total_frames,
+            "total_swing_time_ms": total_frames * 33.33,
+            "estimated_club_speed_mph": round(estimated_club_speed, 1)
+        },
+        
+        "biomechanical_metrics": {
+            # Core rotation metrics
+            "hip_rotation_degrees": round(bio_metrics.get("hip_rotation", 25), 1),
+            "shoulder_rotation_degrees": round(bio_metrics.get("shoulder_rotation", 60), 1),
+            "chest_rotation_efficiency_percent": round(bio_metrics.get("chest_rotation_efficiency", 0.6) * 100, 1),
+            
+            # Weight transfer and stability
+            "weight_shift_percent": round(bio_metrics.get("weight_shift", 0.5) * 100, 1),
+            "ground_force_efficiency_percent": round(bio_metrics.get("ground_force_efficiency", 0.6) * 100, 1),
+            "hip_thrust_percent": round(bio_metrics.get("hip_thrust", 0.5) * 100, 1),
+            
+            # Arm and club mechanics
+            "arm_extension_percent": round(bio_metrics.get("arm_extension", 0.6) * 100, 1),
+            "wrist_hinge_degrees": round(bio_metrics.get("wrist_hinge", 60), 1),
+            "swing_plane_consistency_percent": round(bio_metrics.get("swing_plane_consistency", 0.6) * 100, 1),
+            
+            # Posture and stability
+            "posture_score_percent": round(bio_metrics.get("posture_score", 0.6) * 100, 1),
+            "head_movement_lateral_inches": round(bio_metrics.get("head_movement_lateral", 3.0), 1),
+            "head_movement_vertical_inches": round(bio_metrics.get("head_movement_vertical", 2.0), 1),
+            
+            # Leg mechanics
+            "knee_flexion_address_degrees": round(bio_metrics.get("knee_flexion_address", 25), 1),
+            "knee_flexion_impact_degrees": round(bio_metrics.get("knee_flexion_impact", 30), 1),
+            
+            # Advanced coordination metrics
+            "transition_smoothness_percent": round(bio_metrics.get("transition_smoothness", 0.6) * 100, 1),
+            "kinematic_sequence_percent": round(bio_metrics.get("kinematic_sequence", 0.6) * 100, 1),
+            "energy_transfer_efficiency_percent": round(bio_metrics.get("energy_transfer", 0.6) * 100, 1),
+            "power_accumulation_percent": round(bio_metrics.get("power_accumulation", 0.6) * 100, 1),
+            
+            # Performance estimates
+            "potential_distance_yards": round(bio_metrics.get("potential_distance", 200), 0),
+            "speed_generation_method": bio_metrics.get("speed_generation", "Mixed")
+        },
+        
+        "joint_angles": joint_angles,
+        
+        "trajectory_analysis": trajectory_data if trajectory_data else {
+            "estimated_carry_distance": round(bio_metrics.get("potential_distance", 200) * 0.85, 0),
+            "estimated_ball_speed": round(estimated_club_speed * 1.4, 1),  # Rough conversion
+            "trajectory_type": "Mid" if bio_metrics.get("arm_extension", 0.6) > 0.7 else "Low"
+        }
     }
-
-    return analysis_data
+    
+    return swing_data
 
 
 def create_llm_prompt(analysis_data):
     """
-    Create a prompt for the LLM based on swing analysis data
+    Create a comprehensive prompt for LLM analysis with professional benchmarks
     
     Args:
-        analysis_data (dict): Processed swing analysis data
+        analysis_data (dict): Processed swing analysis data with biomechanical metrics
         
     Returns:
-        str: Prompt for LLM
+        str: Formatted prompt for LLM analysis
     """
-    prompt = """
-You are analyzing a golf swing. First, here are examples of professional golfer swing analyses that represent benchmark performance levels:
+    
+    # Extract metrics from the new data structure
+    bio_metrics = analysis_data.get("biomechanical_metrics", {})
+    timing_metrics = analysis_data.get("timing_metrics", {})
+    swing_phases = analysis_data.get("swing_phases", {})
+    
+    prompt = """# Golf Swing Analysis
 
-## PROFESSIONAL BENCHMARKS
+## PROFESSIONAL BENCHMARKS FOR CALIBRATION
+Use these professional standards as your 100% reference for scoring. These represent elite-level golf swing mechanics based on actual LPGA Tour professional analysis:
 
-### Nelly Korda (Example 1) - LPGA Tour Professional
-**Swing Phases:**
-- Setup: 122 frames, Backswing: 2 frames, Downswing: 5 frames, Impact: 1 frame, Follow-through: 42 frames
+### Professional Golfer Analysis Summary (100% Reference Standards):
 
-**Key Metrics:**
-- Tempo Ratio: 0.4, Hip Rotation: 45°, Shoulder Rotation: 90°, Posture Score: 80%
-- Arm Extension: 80%, Wrist Hinge: 80°, Shoulder Plane Consistency: 85%
-- Weight Shift: 70%, Transition Smoothness: 75%, Sequential Kinematic Sequence: 82%
-- Energy Transfer Efficiency: 78%, Backswing Duration: 0.067s, Downswing Duration: 0.167s
+**Atthaya Thitikul (LPGA Tour - Elite Level):**
+- Hip Rotation: 63.4°, Shoulder Rotation: 120°, Posture Score: 98.2%
+- Weight Shift: 88.4%, Arm Extension: 99.8%, Wrist Hinge: 120°
+- Energy Transfer: 96.1%, Power Accumulation: 100%, Potential Distance: 295 yards
+- Sequential Kinematic Sequence: 100%, Swing Plane Consistency: 85%
 
-### Nelly Korda (Example 2) - Different Swing Tempo Style
-**Key Metrics:**
-- Tempo Ratio: 3.0, Backswing Duration: 0.9s, Downswing Duration: 0.9s
-- All other core metrics remain consistent: Hip Rotation: 45°, Shoulder Rotation: 90°, etc.
+**Nelly Korda (LPGA Tour - Elite Level):**
+- Hip Rotation: 90°, Shoulder Rotation: 120°, Posture Score: 97.4%
+- Weight Shift: 73.5%, Arm Extension: 96.7%, Wrist Hinge: 114.8°
+- Energy Transfer: 91.2%, Power Accumulation: 100%, Potential Distance: 289 yards
+- Sequential Kinematic Sequence: 100%, Swing Plane Consistency: 85%
 
-### Nelly Korda (Example 3) - Fast Tempo Style
-**Key Metrics:**
-- Tempo Ratio: 0.3, Backswing Duration: 0.067s, Downswing Duration: 0.2s
-- Consistent professional metrics maintained across all mechanical aspects
+**Demi Runas (Professional Level):**
+- Hip Rotation: 63.4°, Shoulder Rotation: 120°, Posture Score: 95.9%
+- Weight Shift: 63.9%, Arm Extension: 96.6%, Wrist Hinge: 93.4°
+- Energy Transfer: 88.0%, Power Accumulation: 100%, Potential Distance: 286 yards
+- Sequential Kinematic Sequence: 100%, Swing Plane Consistency: 85%
 
-### Lydia Ko - LPGA Tour Professional
-**Key Metrics:**
-- Tempo Ratio: 14.0, Backswing Duration: 0.467s, Downswing Duration: 0.033s
-- Demonstrates that professional tempo can vary dramatically while maintaining consistency in:
-- Hip/Shoulder Rotation, Posture, Arm Extension, Weight Shift, and Sequential Timing
+### **PROFESSIONAL STANDARDS CALIBRATION (100% Level):**
+**Core Biomechanical Metrics:**
+- **Hip Rotation**: 60-90° (Exceptional body turn and flexibility)
+- **Shoulder Rotation**: 120° (Full shoulder coil for maximum power)
+- **Posture Score**: 95-98% (Exceptional spine angle consistency)
+- **Weight Shift**: 70-88% (Excellent weight transfer to lead side)
 
-### Atthaya Thitikul - LPGA Tour Professional
-**Key Metrics:**
-- Tempo Ratio: 2.8, Backswing Duration: 0.567s, Downswing Duration: 0.2s
-- Consistent with professional standards across all biomechanical markers
+**Upper Body Excellence:**
+- **Arm Extension**: 96-100% (Near-perfect extension at impact)
+- **Wrist Hinge**: 95-120° (Optimal lag and release timing)
+- **Swing Plane Consistency**: 85% (Tour-level repeatability)
+- **Chest Rotation Efficiency**: 100% (Perfect coordination)
 
-## PROFESSIONAL STANDARDS SUMMARY
-Based on these examples, professional golfers consistently achieve:
-- **Core Body Mechanics**: Hip Rotation: 45°, Shoulder Rotation: 90°, Posture Score: 80%
-- **Upper Body**: Arm Extension: 80%, Wrist Hinge: 80°, Shoulder Plane Consistency: 85%
-- **Lower Body**: Weight Shift: 70%, Ground Force Efficiency: 70%
-- **Timing**: Transition Smoothness: 75%, Sequential Kinematic Sequence: 82%
-- **Efficiency**: Energy Transfer: 78%, Power Accumulation: 75%
-- **Head Movement**: Lateral: 2.5in, Vertical: 1.8in (minimal movement is professional standard)
-- **Tempo**: Highly variable (0.3 to 14.0 ratio) - personal style, not performance indicator
+**Power & Efficiency Markers:**
+- **Energy Transfer Efficiency**: 88-96% (Elite power transfer)
+- **Power Accumulation**: 100% (Maximum power generation)
+- **Sequential Kinematic Sequence**: 100% (Perfect body sequencing)
+- **Potential Distance**: 285-295 yards (Tour-level power)
 
----
+**Movement Quality Standards:**
+- **Head Movement**: 2-8 inches (Controlled, minimal excessive movement)
+- **Ground Force Efficiency**: 70-88% (Excellent ground interaction)
+- **Hip Thrust**: 40-100% (Strong lower body drive)
 
-## CURRENT PLAYER ANALYSIS
+### **AMATEUR REFERENCE EXAMPLES FOR CALIBRATION:**
 
-I've analyzed a golf swing and extracted the following data:
+**70% Level Skilled Amateur (Female):**
+- Hip Rotation: 23.0°, Shoulder Rotation: 120° (Excellent shoulder turn, limited hip mobility)
+- Posture Score: 89.5%, Weight Shift: 90.0% (Strong fundamentals)
+- Arm Extension: 99.8%, Wrist Hinge: 49.4° (Great extension, needs more lag)
+- Energy Transfer: 94.5%, Power Accumulation: 82.1% (Very good coordination)
+- Potential Distance: 273 yards, Sequential Kinematic: 93.6%
+- Head Movement: 8.0in lateral, 6.0in vertical (Excessive movement)
+- Speed Generation: Mixed
 
-## Swing Phases
-"""
+**50-60% Level Amateur (Male #1 - Body-Dominant):**
+- Hip Rotation: 90°, Shoulder Rotation: 84.8° (Great hip turn, limited shoulder)
+- Posture Score: 90.7%, Weight Shift: 90.0% (Solid fundamentals)
+- Arm Extension: 100.0%, Wrist Hinge: 66.8° (Good extension and lag)
+- Energy Transfer: 91.8%, Power Accumulation: 100.0% (Strong power generation)
+- Potential Distance: 290 yards, Sequential Kinematic: 100.0%
+- Hip Thrust: 100.0%, Ground Force: 90.0% (Excellent lower body)
+- Speed Generation: Body-dominant
 
-    # Add swing phases information
-    for phase, data in analysis_data["swing_phases"].items():
-        prompt += f"- {phase.capitalize()}: Frame {data['frame_index']}, Duration: {data['duration_frames']} frames\n"
+**50-60% Level Amateur (Male #2 - Body-Dominant):**
+- Hip Rotation: 90°, Shoulder Rotation: 120° (Excellent rotation both)
+- Posture Score: 89.3%, Weight Shift: 90.0% (Good fundamentals)
+- Arm Extension: 99.6%, Wrist Hinge: 52.6° (Great extension, limited lag)
+- Energy Transfer: 96.7%, Power Accumulation: 100.0% (Excellent coordination)
+- Potential Distance: 296 yards, Sequential Kinematic: 100.0%
+- Tempo Issues: Very fast downswing (2.86 ratio vs ideal ~0.3)
+- Speed Generation: Body-dominant
 
-    # Add detailed biomechanical metrics
-    prompt += "\n## Swing Mechanics\n"
+**50-60% Level Amateur (Female - Arms-Dominant):**
+- Hip Rotation: 25°, Shoulder Rotation: 60° (Limited body rotation)
+- Posture Score: 80.6%, Weight Shift: 50.0% (Needs improvement)
+- Arm Extension: 94.8%, Wrist Hinge: 116.6° (Good extension, excellent lag)
+- Energy Transfer: 56.8%, Power Accumulation: 89.3% (Mixed efficiency)
+- Potential Distance: 241 yards, Sequential Kinematic: 66.8%
+- Head Movement: 3.0in lateral, 2.0in vertical (Good head control)
+- Ground Force: 50.0%, Hip Thrust: 30.0% (Weak lower body)
+- Speed Generation: Arms-dominant
+
+**CRITICAL INSIGHTS FROM AMATEUR ANALYSIS:**
+1. **Hip Rotation Varies Significantly**: From 23-90° in amateurs vs 60-90° in professionals
+2. **Shoulder Rotation Range**: 60-120° in amateurs, professionals consistently at 120°
+3. **Wrist Hinge Compensation**: Some amateurs (116.6°) exceed professional standards to compensate for limited body rotation
+4. **Power Generation Methods**: Body-dominant amateurs can achieve near-professional distances despite technical limitations
+5. **Head Movement Control**: Varies dramatically (3-8 inches) - major differentiator
+6. **Energy Transfer Efficiency**: Ranges from 56.8-96.7% in amateurs vs 88-96% in professionals
+7. **Weight Transfer Issues**: Some amateurs struggle with weight shift (50% vs professional 70-88%)
+
+## CURRENT SWING ANALYSIS
+
+### Swing Phase Breakdown
+""".format(
+        swing_phases.get("setup", {}).get("frame_count", 44),
+        swing_phases.get("backswing", {}).get("frame_count", 7), 
+        swing_phases.get("downswing", {}).get("frame_count", 12),
+        swing_phases.get("impact", {}).get("frame_count", 1),
+        swing_phases.get("follow_through", {}).get("frame_count", 37),
+        timing_metrics.get("tempo_ratio", 0.6)
+    )
+
+    # Add swing phase details
+    for phase_name, phase_data in swing_phases.items():
+        prompt += f"- {phase_name.title()}: {phase_data.get('frame_count', 0)} frames ({phase_data.get('duration_ms', 0):.0f}ms)\n"
+    
+    prompt += f"- Total Swing: {timing_metrics.get('total_swing_frames', 0)} frames ({timing_metrics.get('total_swing_time_ms', 0):.0f}ms)\n"
+    prompt += f"- Tempo Ratio (down:back): {timing_metrics.get('tempo_ratio', 1.0)}\n"
+    prompt += f"- Estimated Club Speed: {timing_metrics.get('estimated_club_speed_mph', 85)} mph\n"
 
     # Core body mechanics
-    prompt += "\n### Body Mechanics\n"
-    prompt += "- Tempo Ratio (Backswing:Downswing): {:.1f}\n".format(
-        analysis_data["metrics"].get("tempo_ratio", 0))
-    prompt += "- Hip Rotation (degrees): {}\n".format(
-        analysis_data["metrics"].get("hip_rotation", 0))
-    prompt += "- Shoulder Rotation (degrees): {}\n".format(
-        analysis_data["metrics"].get("shoulder_rotation", 0))
-    prompt += "- Posture Score: {}%\n".format(
-        int(analysis_data["metrics"].get("posture_score", 0) * 100))
+    prompt += "\n### Core Body Mechanics\n"
+    prompt += f"- Hip Rotation: {bio_metrics.get('hip_rotation_degrees', 25)}°\n"
+    prompt += f"- Shoulder Rotation: {bio_metrics.get('shoulder_rotation_degrees', 60)}°\n"
+    prompt += f"- Posture Score: {bio_metrics.get('posture_score_percent', 60)}%\n"
+    prompt += f"- Weight Shift (lead foot at impact): {bio_metrics.get('weight_shift_percent', 50)}%\n"
 
     # Upper body mechanics
     prompt += "\n### Upper Body Mechanics\n"
-    prompt += "- Arm Extension (impact): {}%\n".format(
-        int(analysis_data["metrics"].get("arm_extension", 0.8) * 100))
-    prompt += "- Wrist Hinge (degrees): {}\n".format(
-        analysis_data["metrics"].get("wrist_hinge", 0))
-    prompt += "- Shoulder Plane Consistency: {}%\n".format(
-        int(analysis_data["metrics"].get("swing_plane_consistency", 0) * 100))
-    prompt += "- Chest Rotation Efficiency: {}%\n".format(
-        int(analysis_data["metrics"].get("chest_rotation_efficiency", 0.75) *
-            100))
-    prompt += "- Head Movement (lateral): {}in\n".format(
-        analysis_data["metrics"].get("head_movement_lateral", 2.5))
-    prompt += "- Head Movement (vertical): {}in\n".format(
-        analysis_data["metrics"].get("head_movement_vertical", 1.8))
+    prompt += f"- Arm Extension: {bio_metrics.get('arm_extension_percent', 60)}%\n"
+    prompt += f"- Wrist Hinge: {bio_metrics.get('wrist_hinge_degrees', 60)}°\n"
+    prompt += f"- Shoulder Plane Consistency: {bio_metrics.get('swing_plane_consistency_percent', 60)}%\n"
+    prompt += f"- Chest Rotation Efficiency: {bio_metrics.get('chest_rotation_efficiency_percent', 60)}%\n"
+    prompt += f"- Head Movement (lateral): {bio_metrics.get('head_movement_lateral_inches', 3.0)}in\n"
+    prompt += f"- Head Movement (vertical): {bio_metrics.get('head_movement_vertical_inches', 2.0)}in\n"
 
     # Lower body mechanics
     prompt += "\n### Lower Body Mechanics\n"
-    prompt += "- Weight Shift (lead foot at impact): {}%\n".format(
-        int(analysis_data["metrics"].get("weight_shift", 0) * 100))
-    prompt += "- Knee Flexion (address): {}°\n".format(
-        analysis_data["metrics"].get("knee_flexion_address", 25))
-    prompt += "- Knee Flexion (impact): {}°\n".format(
-        analysis_data["metrics"].get("knee_flexion_impact", 30))
-    prompt += "- Hip Thrust (impact): {}%\n".format(
-        int(analysis_data["metrics"].get("hip_thrust", 0.6) * 100))
-    prompt += "- Ground Force Efficiency: {}%\n".format(
-        int(analysis_data["metrics"].get("ground_force_efficiency", 0.7) *
-            100))
+    prompt += f"- Knee Flexion (address): {bio_metrics.get('knee_flexion_address_degrees', 25)}°\n"
+    prompt += f"- Knee Flexion (impact): {bio_metrics.get('knee_flexion_impact_degrees', 30)}°\n"
+    prompt += f"- Hip Thrust (impact): {bio_metrics.get('hip_thrust_percent', 50)}%\n"
+    prompt += f"- Ground Force Efficiency: {bio_metrics.get('ground_force_efficiency_percent', 60)}%\n"
 
-    # Tempo and timing metrics
-    prompt += "\n### Tempo & Timing\n"
-    prompt += "- Transition Smoothness: {}%\n".format(
-        int(analysis_data["metrics"].get("transition_smoothness", 0.75) * 100))
-    prompt += "- Backswing Duration: {} seconds\n".format(
-        analysis_data["metrics"].get("backswing_duration", 0.9))
-    prompt += "- Downswing Duration: {} seconds\n".format(
-        analysis_data["metrics"].get("downswing_duration", 0.3))
-    prompt += "- Sequential Kinematic Sequence: {}%\n".format(
-        int(analysis_data["metrics"].get("kinematic_sequence", 0.82) * 100))
+    # Advanced coordination metrics
+    prompt += "\n### Movement Quality & Timing\n"
+    prompt += f"- Transition Smoothness: {bio_metrics.get('transition_smoothness_percent', 60)}%\n"
+    prompt += f"- Sequential Kinematic Sequence: {bio_metrics.get('kinematic_sequence_percent', 60)}%\n"
 
     # Efficiency and power metrics
     prompt += "\n### Efficiency & Power Metrics\n"
-    prompt += "- Energy Transfer Efficiency: {}%\n".format(
-        int(analysis_data["metrics"].get("energy_transfer", 0.78) * 100))
-    prompt += "- Potential Distance: {} yards\n".format(
-        analysis_data["metrics"].get("potential_distance", 240))
-    prompt += "- Power Accumulation: {}%\n".format(
-        int(analysis_data["metrics"].get("power_accumulation", 0.75) * 100))
-    prompt += "- Speed Generation Method: {}\n".format(
-        analysis_data["metrics"].get("speed_generation", "Arms-dominant"))
+    prompt += f"- Energy Transfer Efficiency: {bio_metrics.get('energy_transfer_efficiency_percent', 60)}%\n"
+    prompt += f"- Power Accumulation: {bio_metrics.get('power_accumulation_percent', 60)}%\n"
+    prompt += f"- Potential Distance: {bio_metrics.get('potential_distance_yards', 200)} yards\n"
+    prompt += f"- Speed Generation Method: {bio_metrics.get('speed_generation_method', 'Mixed')}\n"
 
     prompt += """
 
 ## ANALYSIS INSTRUCTIONS
 
-Using the professional benchmarks above as your calibration reference, provide your analysis in the following EXACT structured format:
+Using the professional benchmarks and amateur examples above as your calibration reference, provide your analysis in the following EXACT structured format:
 
-**PERFORMANCE_CLASSIFICATION:** [Professional/Advanced/Intermediate/Beginner]
+**PERFORMANCE_CLASSIFICATION:** [XX%] (where XX is a percentage from 10% to 100%)
 
 **STRENGTHS:**
-• [Specific strength with metric comparison to professional standard]
-• [Another strength with professional benchmark reference]
-• [Third strength if applicable]
+• [Specific strength with direct comparison to professional/amateur benchmarks - e.g. "Hip rotation of 45° approaches professional range (60-90°) and exceeds most amateur examples (23-90°)"]
+• [Another strength with benchmark comparison - e.g. "Energy transfer efficiency of 88% meets professional standards (88-96%) and surpasses amateur range (56.8-96.7%)"]
+• [Third strength with specific metric comparison to benchmarks]
 
 **WEAKNESSES:**
-• [Specific weakness with gap from professional standard]
-• [Another weakness with professional benchmark comparison]
-• [Third weakness if applicable]
+• [Specific weakness with gap from professional standard - e.g. "Wrist hinge of 35° falls significantly below professional range (95-120°) and amateur compensation patterns (116.6°)"]
+• [Another weakness with professional/amateur comparison - e.g. "Head movement of 12 inches exceeds both professional (2-8in) and amateur examples (3-8in)"]
+• [Third weakness with benchmark gap analysis]
 
 **PRIORITY_IMPROVEMENTS:**
-1. [Most Critical] Topic Name - Detailed description of current issue and what should be improved to reach professional standard
-2. [Important] Topic Name - Detailed description of current issue and desired improvement outcome
-3. [Focus Area] Topic Name - Detailed description of current issue and target improvement goal
+1. [Most Critical] Topic Name - Current metric vs professional benchmark vs amateur examples, specific target improvement to reach next level
+2. [Important] Topic Name - Current performance vs benchmarks, actionable steps to improve toward professional standards
+3. [Focus Area] Topic Name - Current state vs benchmark ranges, realistic improvement goals based on amateur progression examples
+
+**MANDATORY REQUIREMENTS FOR EACH SECTION:**
+
+**For STRENGTHS** - Must include:
+- Specific metric values from current analysis
+- Direct comparison to professional benchmarks (60-90° hip rotation, 95-120° wrist hinge, 88-96% energy transfer, etc.)
+- Comparison to amateur examples where relevant
+- Recognition when metrics meet or exceed professional standards
+- Acknowledgment when metrics surpass typical amateur performance
+
+**For WEAKNESSES** - Must include:
+- Specific metric gaps from professional standards
+- Comparison to amateur examples to show relative standing
+- Quantified differences (e.g., "15° below professional minimum," "20% gap from professional range")
+- Impact on overall performance potential
+
+**For PRIORITY_IMPROVEMENTS** - Must include:
+- Current metric value vs professional benchmark range
+- Reference to amateur examples showing improvement potential
+- Specific target values based on professional standards
+- Realistic progression steps based on amateur improvement patterns
+- Clear explanation of why this improvement would impact overall performance
+
+**EXAMPLE ANALYSIS STRUCTURE:**
+
+**STRENGTHS:**
+• Shoulder rotation of 118° nearly matches professional standard (120°) and exceeds many amateur examples (60-120° range)
+• Weight shift of 85% falls within professional range (70-88%) and surpasses amateur struggles (50-90% range)
+
+**WEAKNESSES:**  
+• Hip rotation of 28° falls significantly below professional minimum (60°) and amateur body-dominant examples (90°)
+• Energy transfer of 62% below professional range (88-96%) and some amateur achievements (96.7%)
+
+**PRIORITY_IMPROVEMENTS:**
+1. [Most Critical] Hip Mobility Development - Current 28° vs professional 60-90° and amateur body-dominant 90°. Target 45° as next milestone toward professional range.
+2. [Important] Kinematic Sequence Optimization - Current 70% vs professional 100% and amateur range 66.8-100%. Improve to 85% through better hip-shoulder coordination.
+
+PERFORMANCE CLASSIFICATION SCALE:
+- **90-100%**: Professional/Tour level - Consistently meets or exceeds professional benchmarks across all metrics
+- **80-89%**: Advanced amateur - Meets most professional standards with minor gaps in 1-2 areas
+- **70-79%**: Skilled amateur - Solid fundamentals with some gaps from professional standards
+- **60-69%**: Intermediate - Good basic mechanics but several areas need improvement to reach professional level
+- **50-59%**: Developing intermediate - Basic swing structure present but multiple areas below professional standards
+- **40-49%**: Advanced beginner - Some fundamentals in place but significant gaps in most areas
+- **30-39%**: Beginner - Basic swing motion present but major improvements needed across most metrics
+- **20-29%**: Novice - Limited swing fundamentals, extensive work needed on basic mechanics
+- **10-19%**: Complete beginner - Minimal swing structure, needs comprehensive fundamental development
+
+IMPORTANT ANALYSIS PRIORITIES (Based on Real Professional Data):
+1. **PRIMARY FOCUS - Critical Biomechanical Differentiators**: 
+   - Hip Rotation (Professional: 60-90°, Amateur Range: 23-90°) - MOST IMPORTANT
+   - Shoulder Rotation (Professional: 120°, Amateur Range: 60-120°) - MOST IMPORTANT  
+   - Sequential Kinematic Sequence (Professional: 100%, Amateur Range: 66.8-100%)
+   - Energy Transfer Efficiency (Professional: 88-96%, Amateur Range: 56.8-96.7%)
+
+2. **SECONDARY FOCUS - Power Generation Mechanics**: 
+   - Power Accumulation (Professional: 100%, Amateur Range: 82.1-100%)
+   - Chest Rotation Efficiency (Professional: 100%, Amateur Range: 53.7-100%)
+   - Wrist Hinge (Professional: 95-120°, Amateur Range: 49.4-116.6°)
+   - Swing Plane Consistency (Professional: 85%, Amateur: 70-85%)
+
+3. **TERTIARY FOCUS - Refinement Metrics**: 
+   - Posture Score (Professional: 95-98%, Amateur Range: 80.6-90.7%)
+   - Arm Extension (Professional: 96-100%, Amateur Range: 94.8-100%)
+   - Weight Shift (Professional: 70-88%, Amateur Range: 50-90%)
+   - Ground Force Efficiency (Professional: 70-88%, Amateur Range: 50-90%)
+
+4. **DE-EMPHASIZE - Timing Variables**: Frame counts, tempo ratios, and duration metrics vary significantly based on video capture rates and personal style preferences
+
+**SCORING CALIBRATION GUIDELINES:**
+- **Hip/Shoulder Rotation Analysis**: Compare to professional minimums (60° hip, 120° shoulder) and amateur ranges
+- **Energy Transfer <70%**: Score below 60%, compare to amateur range (56.8-96.7%)
+- **Sequential Kinematic <80%**: Score below 70%, reference amateur examples (66.8-100%)
+- **Power Accumulation <90%**: Score below 80%, compare to amateur achievements (82.1-100%)
+- **Head Movement >10 inches**: Major limitation, compare to professional (2-8in) and amateur (3-8in) ranges
+- **Weight Shift <60%**: Significant weakness, reference amateur struggles (50%) vs successes (90%)
 
 IMPORTANT FORMATTING RULES:
 - Use the exact headers shown above (PERFORMANCE_CLASSIFICATION, STRENGTHS, WEAKNESSES, PRIORITY_IMPROVEMENTS)
+- For performance classification, use format: [XX%] where XX is the percentage (10-100)
 - For strengths and weaknesses, use bullet points (•) 
 - For priority improvements, use numbered format (1., 2., 3.) with priority level in brackets
-- Each priority improvement must have: [Priority Level] Topic Name - Full description
-- Provide complete sentences and descriptions - no incomplete thoughts
-- Compare all metrics to the professional benchmarks provided above
-- Be specific about what needs improvement and what the target should be
+- Each priority improvement must have: [Priority Level] Topic Name - Full description with benchmark comparisons
+- **MANDATORY**: Include specific metric values and benchmark comparisons in every strength, weakness, and improvement
+- **MANDATORY**: Reference professional standards and amateur examples in analysis content
+- Provide complete sentences with quantified comparisons - no generic statements
+- Focus analysis on biomechanical consistency rather than timing variations
+- **CRITICAL**: Every analysis point must tie back to the professional benchmarks and amateur examples provided
 
-Remember: Professional golfers consistently achieve the benchmark metrics shown above. Use these as the gold standard for what constitutes excellent golf swing mechanics.
+Remember: Use the professional benchmarks (Atthaya Thitikul: 63.4° hip, 120° shoulder, 96.1% energy transfer, etc.) and amateur examples (23-90° hip rotation range, 56.8-96.7% energy transfer range, etc.) as the foundation for ALL analysis content, not just the percentage classification. Every strength, weakness, and improvement recommendation must include specific metric comparisons to these established benchmarks.
 """
 
     return prompt
@@ -503,29 +648,32 @@ def parse_and_format_analysis(raw_analysis):
     """
     # Default structure
     formatted_analysis = {
-        'classification': 'Intermediate',  # Default classification
+        'classification': 50,  # Default to 50%
         'strengths': [],
         'weaknesses': [],
         'priority_improvements': []
     }
     
-    # Extract classification using the new structured format
-    classification_match = re.search(r'\*\*PERFORMANCE_CLASSIFICATION:\*\*\s*([A-Za-z]+)', raw_analysis, re.IGNORECASE)
+    # Extract percentage classification using the new structured format
+    classification_match = re.search(r'\*\*PERFORMANCE_CLASSIFICATION:\*\*\s*\[?(\d+)%?\]?', raw_analysis, re.IGNORECASE)
     if classification_match:
-        formatted_analysis['classification'] = classification_match.group(1).title()
+        percentage = int(classification_match.group(1))
+        # Ensure percentage is within valid range
+        formatted_analysis['classification'] = max(10, min(100, percentage))
     else:
-        # Fallback to original patterns
-        classification_patterns = [
-            r'(?:Performance Classification|Classification|Level).*?:\s*(Professional|Advanced|Intermediate|Beginner)',
-            r'(Professional|Advanced|Intermediate|Beginner)\s+(?:Level|Amateur)',
-            r'classified as\s+(Professional|Advanced|Intermediate|Beginner)',
-            r'(?:at|as)\s+(?:an?\s+)?(Professional|Advanced|Intermediate|Beginner)\s+level'
+        # Fallback to look for standalone percentages
+        percentage_patterns = [
+            r'(?:Performance|Classification|Level|Score).*?(\d+)%',
+            r'(\d+)%.*?(?:level|performance|classification)',
+            r'classified.*?(\d+)%',
+            r'(?:at|as)\s+(\d+)%'
         ]
         
-        for pattern in classification_patterns:
+        for pattern in percentage_patterns:
             match = re.search(pattern, raw_analysis, re.IGNORECASE)
             if match:
-                formatted_analysis['classification'] = match.group(1).title()
+                percentage = int(match.group(1))
+                formatted_analysis['classification'] = max(10, min(100, percentage))
                 break
     
     # Extract strengths using the new structured format
@@ -632,29 +780,30 @@ def parse_and_format_analysis(raw_analysis):
         formatted_analysis['weaknesses'] = ['Areas for improvement identified']
     
     if not formatted_analysis['priority_improvements']:
-        if formatted_analysis['classification'] == 'Beginner':
+        percentage = formatted_analysis['classification']
+        if percentage >= 80:
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Fundamental Posture and Setup - Focus on establishing proper spine angle and athletic stance throughout the swing for better consistency and power transfer.'},
-                {'rank': 2, 'description': '[Important] Tempo and Timing Development - Develop consistent swing rhythm and timing to improve sequence and control.'},
-                {'rank': 3, 'description': '[Focus Area] Weight Shift and Balance - Improve weight transfer from back foot to front foot during swing for better power and stability.'}
+                {'rank': 1, 'description': '[Most Critical] Technical Refinement - Fine-tune specific mechanics to achieve consistency at the highest level.'},
+                {'rank': 2, 'description': '[Important] Performance Optimization - Focus on maximizing efficiency and power transfer.'},
+                {'rank': 3, 'description': '[Focus Area] Competitive Preparation - Enhance mental game and course management skills.'}
             ]
-        elif formatted_analysis['classification'] == 'Intermediate':
+        elif percentage >= 60:
             formatted_analysis['priority_improvements'] = [
                 {'rank': 1, 'description': '[Most Critical] Kinematic Sequence Enhancement - Improve body rotation coordination to generate more power and consistency.'},
                 {'rank': 2, 'description': '[Important] Clubface Control - Enhance swing path consistency for better ball striking accuracy.'},
                 {'rank': 3, 'description': '[Focus Area] Energy Transfer Efficiency - Optimize power transfer throughout the swing to maximize distance.'}
             ]
-        elif formatted_analysis['classification'] == 'Advanced':
+        elif percentage >= 40:
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Transition Smoothness - Fine-tune timing and tempo to achieve professional-level consistency.'},
-                {'rank': 2, 'description': '[Important] Power Accumulation - Optimize energy storage and release for maximum clubhead speed.'},
-                {'rank': 3, 'description': '[Focus Area] Pressure Performance - Enhance consistency under competitive conditions.'}
+                {'rank': 1, 'description': '[Most Critical] Fundamental Mechanics - Establish consistent posture, grip, and setup positions.'},
+                {'rank': 2, 'description': '[Important] Body Rotation Development - Improve hip and shoulder turn coordination.'},
+                {'rank': 3, 'description': '[Focus Area] Weight Transfer - Develop proper weight shift from back foot to front foot during swing.'}
             ]
-        else:  # Professional
+        else:  # Below 40%
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Technical Refinement - Maintain excellence with minor adjustments to specific mechanics.'},
-                {'rank': 2, 'description': '[Important] Strategic Optimization - Focus on course management and scoring opportunities.'},
-                {'rank': 3, 'description': '[Focus Area] Physical Conditioning - Continue fitness work for career longevity and peak performance.'}
+                {'rank': 1, 'description': '[Most Critical] Basic Setup and Posture - Focus on establishing proper spine angle and athletic stance.'},
+                {'rank': 2, 'description': '[Important] Fundamental Swing Motion - Develop basic backswing and downswing mechanics.'},
+                {'rank': 3, 'description': '[Focus Area] Balance and Stability - Improve overall balance throughout the swing motion.'}
             ]
     
     return formatted_analysis
@@ -667,70 +816,89 @@ def display_formatted_analysis(analysis_data):
     Args:
         analysis_data (dict): Structured analysis data from parse_and_format_analysis
     """
-    # 1. Performance Classification with colored rounded rectangles
-    user_classification = analysis_data['classification']
+    # 1. Performance Classification with percentage-based progress bar
+    user_percentage = analysis_data['classification']
     
     # Display classification in black bolded header
     st.markdown(f"""
     <h2 style='color: black; font-weight: bold; text-align: center; margin-bottom: 20px;'>
-        🎯 Performance Classification: {user_classification}
+        🎯 Performance Score: {user_percentage}%
     </h2>
     """, unsafe_allow_html=True)
     
-    # Create columns for the classification rectangles
-    col1, col2, col3, col4 = st.columns(4)
+    # Create a visual progress bar
+    progress_color = "#ff4444"  # Red for low scores
+    if user_percentage >= 80:
+        progress_color = "#44aa44"  # Green for high scores
+    elif user_percentage >= 60:
+        progress_color = "#ffdd00"  # Yellow for good scores
+    elif user_percentage >= 40:
+        progress_color = "#ff8800"  # Orange for medium scores
     
-    # Define colors and styling - all rectangles should have colors
-    colors = {
-        'Beginner': {'bg': '#ff4444', 'text': 'white'},
-        'Intermediate': {'bg': '#ff8800', 'text': 'white'},
-        'Advanced': {'bg': '#ffdd00', 'text': 'black'},
-        'Professional': {'bg': '#44aa44', 'text': 'white'}
-    }
-    
-    with col1:
-        bg_color = colors['Beginner']['bg']
-        text_color = colors['Beginner']['text']
-        border_style = '3px solid #333' if user_classification == 'Beginner' else '2px solid #ddd'
-        st.markdown(f"""
-        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
-                    border-radius: 15px; margin: 5px; border: {border_style};'>
-            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Beginner</div>
+    # Progress bar with percentage labels
+    st.markdown(f"""
+    <div style='margin: 20px 0;'>
+        <div style='display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-bottom: 5px;'>
+            <span>10% - Complete Beginner</span>
+            <span>50% - Intermediate</span>
+            <span>100% - Professional</span>
         </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        bg_color = colors['Intermediate']['bg']
-        text_color = colors['Intermediate']['text']
-        border_style = '3px solid #333' if user_classification == 'Intermediate' else '2px solid #ddd'
-        st.markdown(f"""
-        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
-                    border-radius: 15px; margin: 5px; border: {border_style};'>
-            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Intermediate</div>
+        <div style='width: 100%; background-color: #f0f0f0; border-radius: 25px; height: 30px; position: relative;'>
+            <div style='width: {user_percentage}%; background-color: {progress_color}; height: 30px; border-radius: 25px; 
+                        display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;'>
+                {user_percentage}%
+            </div>
         </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        bg_color = colors['Advanced']['bg']
-        text_color = colors['Advanced']['text']
-        border_style = '3px solid #333' if user_classification == 'Advanced' else '2px solid #ddd'
-        st.markdown(f"""
-        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
-                    border-radius: 15px; margin: 5px; border: {border_style};'>
-            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Advanced</div>
+        <div style='display: flex; justify-content: space-between; font-size: 10px; color: #888; margin-top: 5px;'>
+            <span>10%</span>
+            <span>20%</span>
+            <span>30%</span>
+            <span>40%</span>
+            <span>50%</span>
+            <span>60%</span>
+            <span>70%</span>
+            <span>80%</span>
+            <span>90%</span>
+            <span>100%</span>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
     
-    with col4:
-        bg_color = colors['Professional']['bg']
-        text_color = colors['Professional']['text']
-        border_style = '3px solid #333' if user_classification == 'Professional' else '2px solid #ddd'
-        st.markdown(f"""
-        <div style='text-align: center; padding: 15px; background-color: {bg_color}; 
-                    border-radius: 15px; margin: 5px; border: {border_style};'>
-            <div style='font-size: 14px; font-weight: bold; color: {text_color};'>Professional</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Performance level description based on percentage
+    if user_percentage >= 90:
+        level_desc = "🏆 **Professional/Tour Level** - Consistently meets or exceeds professional benchmarks"
+        level_color = "#44aa44"
+    elif user_percentage >= 80:
+        level_desc = "🥇 **Advanced Amateur** - Meets most professional standards with minor gaps"
+        level_color = "#66bb44"
+    elif user_percentage >= 70:
+        level_desc = "🥈 **Skilled Amateur** - Solid fundamentals with some gaps from professional standards"
+        level_color = "#88cc44"
+    elif user_percentage >= 60:
+        level_desc = "🥉 **Intermediate** - Good basic mechanics but several areas need improvement"
+        level_color = "#ffdd00"
+    elif user_percentage >= 50:
+        level_desc = "📈 **Developing Intermediate** - Basic swing structure present"
+        level_color = "#ffcc00"
+    elif user_percentage >= 40:
+        level_desc = "📚 **Advanced Beginner** - Some fundamentals in place"
+        level_color = "#ff8800"
+    elif user_percentage >= 30:
+        level_desc = "🎯 **Beginner** - Basic swing motion present but major improvements needed"
+        level_color = "#ff6600"
+    elif user_percentage >= 20:
+        level_desc = "🌱 **Novice** - Limited swing fundamentals, extensive work needed"
+        level_color = "#ff4444"
+    else:
+        level_desc = "🚀 **Complete Beginner** - Minimal swing structure, needs comprehensive fundamental development"
+        level_color = "#ff2222"
+    
+    st.markdown(f"""
+    <div style='text-align: center; padding: 15px; background-color: {level_color}20; 
+                border-radius: 10px; margin: 20px 0; border: 2px solid {level_color};'>
+        <div style='color: {level_color}; font-size: 16px; font-weight: bold;'>{level_desc}</div>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -844,3 +1012,315 @@ def display_formatted_analysis(analysis_data):
             st.write(desc)
         
         st.write("")  # Add spacing between items
+
+
+def calculate_biomechanical_metrics(pose_data, swing_phases):
+    """
+    Calculate biomechanical metrics from pose keypoints data
+    
+    Args:
+        pose_data (dict): Dictionary mapping frame indices to pose keypoints
+        swing_phases (dict): Dictionary mapping phase names to lists of frame indices
+        
+    Returns:
+        dict: Calculated biomechanical metrics
+    """
+    metrics = {}
+    
+    # Get key frames for analysis
+    setup_frames = swing_phases.get("setup", [])
+    backswing_frames = swing_phases.get("backswing", [])
+    downswing_frames = swing_phases.get("downswing", [])
+    impact_frames = swing_phases.get("impact", [])
+    
+    # Get representative frames
+    setup_frame = setup_frames[len(setup_frames) // 2] if setup_frames else None
+    top_backswing_frame = backswing_frames[-1] if backswing_frames else None
+    impact_frame = impact_frames[0] if impact_frames else None
+    
+    # MediaPipe Pose landmark indices
+    # Shoulders: left(11), right(12)
+    # Hips: left(23), right(24)
+    # Knees: left(25), right(26)
+    # Ankles: left(27), right(28)
+    # Elbows: left(13), right(14)
+    # Wrists: left(15), right(16)
+    
+    try:
+        # Calculate Hip Rotation
+        if setup_frame and top_backswing_frame and setup_frame in pose_data and top_backswing_frame in pose_data:
+            setup_keypoints = pose_data[setup_frame]
+            backswing_keypoints = pose_data[top_backswing_frame]
+            
+            if len(setup_keypoints) >= 33 and len(backswing_keypoints) >= 33:
+                # Hip rotation calculation using hip landmarks
+                setup_left_hip = np.array(setup_keypoints[23][:2])
+                setup_right_hip = np.array(setup_keypoints[24][:2])
+                backswing_left_hip = np.array(backswing_keypoints[23][:2])
+                backswing_right_hip = np.array(backswing_keypoints[24][:2])
+                
+                # Calculate hip line angles
+                setup_hip_vector = setup_right_hip - setup_left_hip
+                backswing_hip_vector = backswing_right_hip - backswing_left_hip
+                
+                setup_hip_angle = np.degrees(np.arctan2(setup_hip_vector[1], setup_hip_vector[0]))
+                backswing_hip_angle = np.degrees(np.arctan2(backswing_hip_vector[1], backswing_hip_vector[0]))
+                
+                hip_rotation = abs(backswing_hip_angle - setup_hip_angle)
+                # Normalize to reasonable range (professionals typically achieve 45+ degrees)
+                metrics["hip_rotation"] = min(hip_rotation, 90)
+            else:
+                metrics["hip_rotation"] = 25  # Lower default for incomplete data
+        else:
+            metrics["hip_rotation"] = 25
+            
+        # Calculate Shoulder Rotation
+        if setup_frame and top_backswing_frame and setup_frame in pose_data and top_backswing_frame in pose_data:
+            setup_keypoints = pose_data[setup_frame]
+            backswing_keypoints = pose_data[top_backswing_frame]
+            
+            if len(setup_keypoints) >= 33 and len(backswing_keypoints) >= 33:
+                # Shoulder rotation calculation
+                setup_left_shoulder = np.array(setup_keypoints[11][:2])
+                setup_right_shoulder = np.array(setup_keypoints[12][:2])
+                backswing_left_shoulder = np.array(backswing_keypoints[11][:2])
+                backswing_right_shoulder = np.array(backswing_keypoints[12][:2])
+                
+                setup_shoulder_vector = setup_right_shoulder - setup_left_shoulder
+                backswing_shoulder_vector = backswing_right_shoulder - backswing_left_shoulder
+                
+                setup_shoulder_angle = np.degrees(np.arctan2(setup_shoulder_vector[1], setup_shoulder_vector[0]))
+                backswing_shoulder_angle = np.degrees(np.arctan2(backswing_shoulder_vector[1], backswing_shoulder_vector[0]))
+                
+                shoulder_rotation = abs(backswing_shoulder_angle - setup_shoulder_angle)
+                metrics["shoulder_rotation"] = min(shoulder_rotation, 120)
+            else:
+                metrics["shoulder_rotation"] = 60  # Lower default
+        else:
+            metrics["shoulder_rotation"] = 60
+            
+        # Calculate Weight Shift (using hip and ankle positions)
+        if setup_frame and impact_frame and setup_frame in pose_data and impact_frame in pose_data:
+            setup_keypoints = pose_data[setup_frame]
+            impact_keypoints = pose_data[impact_frame]
+            
+            if len(setup_keypoints) >= 33 and len(impact_keypoints) >= 33:
+                # Use center of mass approximation
+                setup_left_ankle = np.array(setup_keypoints[27][:2])
+                setup_right_ankle = np.array(setup_keypoints[28][:2])
+                impact_left_ankle = np.array(impact_keypoints[27][:2])
+                impact_right_ankle = np.array(impact_keypoints[28][:2])
+                
+                # Calculate weight distribution based on foot positioning
+                setup_center = (setup_left_ankle + setup_right_ankle) / 2
+                impact_center = (impact_left_ankle + impact_right_ankle) / 2
+                
+                # Weight shift calculation (simplified)
+                foot_width = np.linalg.norm(setup_right_ankle - setup_left_ankle)
+                if foot_width > 0:
+                    weight_shift_amount = np.linalg.norm(impact_center - setup_center) / foot_width
+                    # Convert to percentage (professionals typically achieve 70%+ to front foot)
+                    weight_shift = min(0.5 + weight_shift_amount * 0.5, 0.9)
+                else:
+                    weight_shift = 0.5
+                metrics["weight_shift"] = weight_shift
+            else:
+                metrics["weight_shift"] = 0.5  # Neutral default
+        else:
+            metrics["weight_shift"] = 0.5
+            
+        # Calculate Posture Score (spine angle consistency)
+        posture_scores = []
+        for frame_list in [setup_frames, backswing_frames, impact_frames]:
+            if frame_list:
+                frame = frame_list[len(frame_list) // 2]
+                if frame in pose_data and len(pose_data[frame]) >= 33:
+                    keypoints = pose_data[frame]
+                    # Use shoulder and hip landmarks to estimate spine angle
+                    left_shoulder = np.array(keypoints[11][:2])
+                    right_shoulder = np.array(keypoints[12][:2])
+                    left_hip = np.array(keypoints[23][:2])
+                    right_hip = np.array(keypoints[24][:2])
+                    
+                    shoulder_center = (left_shoulder + right_shoulder) / 2
+                    hip_center = (left_hip + right_hip) / 2
+                    
+                    spine_vector = shoulder_center - hip_center
+                    spine_angle = np.degrees(np.arctan2(spine_vector[1], spine_vector[0]))
+                    posture_scores.append(abs(spine_angle))
+        
+        if posture_scores:
+            # Good posture = consistent spine angle across phases
+            posture_consistency = 1.0 - (np.std(posture_scores) / 90.0)  # Normalize by 90 degrees
+            metrics["posture_score"] = max(0.3, min(posture_consistency, 1.0))
+        else:
+            metrics["posture_score"] = 0.6
+            
+        # Calculate Arm Extension at Impact
+        if impact_frame and impact_frame in pose_data and len(pose_data[impact_frame]) >= 33:
+            keypoints = pose_data[impact_frame]
+            right_shoulder = np.array(keypoints[12][:2])
+            right_elbow = np.array(keypoints[14][:2])
+            right_wrist = np.array(keypoints[16][:2])
+            
+            # Calculate arm extension
+            upper_arm = np.linalg.norm(right_elbow - right_shoulder)
+            forearm = np.linalg.norm(right_wrist - right_elbow)
+            total_arm_length = upper_arm + forearm
+            
+            # Calculate actual distance from shoulder to wrist
+            actual_distance = np.linalg.norm(right_wrist - right_shoulder)
+            
+            if total_arm_length > 0:
+                extension_ratio = actual_distance / total_arm_length
+                metrics["arm_extension"] = min(extension_ratio, 1.0)
+            else:
+                metrics["arm_extension"] = 0.6
+        else:
+            metrics["arm_extension"] = 0.6
+            
+        # Calculate Wrist Hinge using joint angles
+        wrist_angles = []
+        for frame_list in [backswing_frames, impact_frames]:
+            if frame_list:
+                frame = frame_list[len(frame_list) // 2]
+                if frame in pose_data:
+                    angles = calculate_joint_angles(pose_data[frame])
+                    if "right_wrist" in angles:
+                        wrist_angles.append(angles["right_wrist"])
+        
+        if wrist_angles:
+            avg_wrist_angle = np.mean(wrist_angles)
+            # Good wrist hinge is typically 80+ degrees
+            metrics["wrist_hinge"] = min(avg_wrist_angle, 120)
+        else:
+            metrics["wrist_hinge"] = 60
+            
+        # Calculate Head Movement (lateral and vertical)
+        if setup_frame and impact_frame and setup_frame in pose_data and impact_frame in pose_data:
+            setup_keypoints = pose_data[setup_frame]
+            impact_keypoints = pose_data[impact_frame]
+            
+            if len(setup_keypoints) >= 33 and len(impact_keypoints) >= 33:
+                # Use nose landmark (index 0) for head position
+                setup_head = np.array(setup_keypoints[0][:2])
+                impact_head = np.array(impact_keypoints[0][:2])
+                
+                head_movement = np.abs(impact_head - setup_head)
+                # Convert pixel movement to approximate inches (rough estimation)
+                # Assume average person's head is about 9 inches, use that as scale
+                if len(setup_keypoints) > 10:  # Have enough landmarks
+                    head_height_pixels = abs(setup_keypoints[0][1] - setup_keypoints[10][1])  # Nose to mouth
+                    if head_height_pixels > 0:
+                        pixel_to_inch = 4.0 / head_height_pixels  # Approximate nose-to-mouth is 4 inches
+                        lateral_movement = head_movement[0] * pixel_to_inch
+                        vertical_movement = head_movement[1] * pixel_to_inch
+                    else:
+                        lateral_movement = 3.0
+                        vertical_movement = 2.0
+                else:
+                    lateral_movement = 3.0
+                    vertical_movement = 2.0
+                
+                metrics["head_movement_lateral"] = min(lateral_movement, 8.0)
+                metrics["head_movement_vertical"] = min(vertical_movement, 6.0)
+            else:
+                metrics["head_movement_lateral"] = 3.0
+                metrics["head_movement_vertical"] = 2.0
+        else:
+            metrics["head_movement_lateral"] = 3.0
+            metrics["head_movement_vertical"] = 2.0
+            
+        # Calculate Knee Flexion
+        knee_flexions = {}
+        for phase_name, frame_list in [("address", setup_frames), ("impact", impact_frames)]:
+            if frame_list:
+                frame = frame_list[len(frame_list) // 2]
+                if frame in pose_data and len(pose_data[frame]) >= 33:
+                    keypoints = pose_data[frame]
+                    # Right knee angle using hip, knee, ankle
+                    right_hip = np.array(keypoints[24][:2])
+                    right_knee = np.array(keypoints[26][:2])
+                    right_ankle = np.array(keypoints[28][:2])
+                    
+                    # Calculate knee angle
+                    thigh_vector = right_hip - right_knee
+                    shin_vector = right_ankle - right_knee
+                    
+                    if np.linalg.norm(thigh_vector) > 0 and np.linalg.norm(shin_vector) > 0:
+                        cos_angle = np.dot(thigh_vector, shin_vector) / (np.linalg.norm(thigh_vector) * np.linalg.norm(shin_vector))
+                        cos_angle = np.clip(cos_angle, -1, 1)
+                        knee_angle = np.degrees(np.arccos(cos_angle))
+                        knee_flexions[phase_name] = min(knee_angle, 60)
+                    else:
+                        knee_flexions[phase_name] = 25
+                else:
+                    knee_flexions[phase_name] = 25
+        
+        metrics["knee_flexion_address"] = knee_flexions.get("address", 25)
+        metrics["knee_flexion_impact"] = knee_flexions.get("impact", 30)
+        
+        # Calculate derived metrics based on quality of basic metrics
+        # These are more complex and would require additional analysis
+        
+        # Swing Plane Consistency (based on arm and club positions across frames)
+        if metrics["shoulder_rotation"] >= 80 and metrics["arm_extension"] >= 0.75:
+            metrics["swing_plane_consistency"] = 0.85
+        elif metrics["shoulder_rotation"] >= 60 and metrics["arm_extension"] >= 0.6:
+            metrics["swing_plane_consistency"] = 0.70
+        else:
+            metrics["swing_plane_consistency"] = 0.55
+            
+        # Chest Rotation Efficiency (derived from shoulder rotation and posture)
+        chest_efficiency = (metrics["shoulder_rotation"] / 90.0) * metrics["posture_score"]
+        metrics["chest_rotation_efficiency"] = min(chest_efficiency, 1.0)
+        
+        # Hip Thrust (derived from weight shift and hip rotation)
+        hip_thrust = (metrics["weight_shift"] - 0.5) * 2 * (metrics["hip_rotation"] / 45.0)
+        metrics["hip_thrust"] = max(0.3, min(hip_thrust, 1.0))
+        
+        # Ground Force Efficiency (derived from weight shift and knee flexion consistency)
+        knee_consistency = 1.0 - abs(metrics["knee_flexion_impact"] - metrics["knee_flexion_address"]) / 30.0
+        ground_force = metrics["weight_shift"] * knee_consistency
+        metrics["ground_force_efficiency"] = max(0.4, min(ground_force, 1.0))
+        
+        # Transition Smoothness (based on posture consistency and movement quality)
+        head_movement_penalty = (metrics["head_movement_lateral"] + metrics["head_movement_vertical"]) / 10.0
+        transition_smoothness = metrics["posture_score"] * (1.0 - head_movement_penalty)
+        metrics["transition_smoothness"] = max(0.4, min(transition_smoothness, 1.0))
+        
+        # Sequential Kinematic Sequence (based on overall coordination)
+        coordination_score = (metrics["hip_rotation"] / 45.0 + metrics["shoulder_rotation"] / 90.0 + 
+                            metrics["weight_shift"] + metrics["arm_extension"]) / 4.0
+        metrics["kinematic_sequence"] = max(0.5, min(coordination_score, 1.0))
+        
+        # Energy Transfer Efficiency (based on multiple factors)
+        energy_transfer = (metrics["kinematic_sequence"] + metrics["ground_force_efficiency"] + 
+                         metrics["chest_rotation_efficiency"]) / 3.0
+        metrics["energy_transfer"] = max(0.4, min(energy_transfer, 1.0))
+        
+        # Power Accumulation (based on body mechanics)
+        power_accumulation = (metrics["hip_rotation"] / 45.0 + metrics["shoulder_rotation"] / 90.0 + 
+                            metrics["wrist_hinge"] / 80.0) / 3.0
+        metrics["power_accumulation"] = max(0.4, min(power_accumulation, 1.0))
+        
+        # Potential Distance (based on power metrics and efficiency)
+        base_distance = 180  # Base amateur distance
+        power_multiplier = metrics["power_accumulation"] * metrics["energy_transfer"]
+        potential_distance = base_distance + (power_multiplier * 120)  # Up to 300 yards for perfect mechanics
+        metrics["potential_distance"] = min(potential_distance, 320)
+        
+        # Speed Generation Method (based on power sources)
+        if metrics["hip_rotation"] >= 40 and metrics["shoulder_rotation"] >= 80:
+            metrics["speed_generation"] = "Body-dominant"
+        elif metrics["arm_extension"] >= 0.8 and metrics["wrist_hinge"] >= 75:
+            metrics["speed_generation"] = "Arms-dominant" 
+        else:
+            metrics["speed_generation"] = "Mixed"
+            
+    except Exception as e:
+        print(f"Error calculating biomechanical metrics: {str(e)}")
+        # Fail here
+        return None
+    
+    return metrics
