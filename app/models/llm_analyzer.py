@@ -523,60 +523,70 @@ Use these professional standards as your 100% reference for scoring. These repre
 
 ## ANALYSIS INSTRUCTIONS
 
-Using the professional benchmarks and amateur examples above as your calibration reference, provide your analysis in the following EXACT structured format:
+Using the professional benchmarks above as your calibration reference, provide your analysis in the following EXACT structured format:
 
 **PERFORMANCE_CLASSIFICATION:** [XX%] (where XX is a percentage from 10% to 100%)
 
 **STRENGTHS:**
-• [Specific strength with direct comparison to professional/amateur benchmarks - e.g. "Hip rotation of 45° approaches professional range (60-90°) and exceeds most amateur examples (23-90°)"]
-• [Another strength with benchmark comparison - e.g. "Energy transfer efficiency of 88% meets professional standards (88-96%) and surpasses amateur range (56.8-96.7%)"]
-• [Third strength with specific metric comparison to benchmarks]
+• [Specific strength with direct comparison to professional benchmarks - e.g. "Your shoulder rotation shows great upper body mobility during your backswing, similar to what we see in professional swings"]
+• [Another strength with benchmark comparison - e.g. "Your arm extension at impact is really strong, demonstrating excellent fundamentals"]
+• [Third strength with specific metric comparison to benchmarks - e.g. "Your weight transfer demonstrates solid fundamentals in shifting from back foot to front foot through impact"]
 
 **WEAKNESSES:**
-• [Specific weakness with gap from professional standard - e.g. "Wrist hinge of 35° falls significantly below professional range (95-120°) and amateur compensation patterns (116.6°)"]
-• [Another weakness with professional/amateur comparison - e.g. "Head movement of 12 inches exceeds both professional (2-8in) and amateur examples (3-8in)"]
-• [Third weakness with benchmark gap analysis]
+• [Specific area describing impact without numbers - e.g. "Your hip rotation is less than optimal, which may be limiting your power generation and overall swing efficiency"]
+• [Another area with impact description - e.g. "Your head movement during the swing is more than ideal, which could be affecting your accuracy and consistency"]
+• [Third area with impact-focused description - e.g. "Your wrist action could use some work, which may be affecting your ability to generate lag and create powerful impact"]
 
 **PRIORITY_IMPROVEMENTS:**
-1. [Most Critical] Topic Name - Current metric vs professional benchmark vs amateur examples, specific target improvement to reach next level
-2. [Important] Topic Name - Current performance vs benchmarks, actionable steps to improve toward professional standards
-3. [Focus Area] Topic Name - Current state vs benchmark ranges, realistic improvement goals based on amateur progression examples
+1. Topic Name - Explain what to focus on and when in swing, with encouraging tone and clear benefit explanation
+2. Topic Name - What to work on with supportive guidance and positive reinforcement about potential improvements  
+3. Topic Name - Area to focus on with gentle direction and realistic goals
 
 **MANDATORY REQUIREMENTS FOR EACH SECTION:**
 
 **For STRENGTHS** - Must include:
-- Specific metric values from current analysis
-- Direct comparison to professional benchmarks (60-90° hip rotation, 95-120° wrist hinge, 88-96% energy transfer, etc.)
-- Comparison to amateur examples where relevant
-- Recognition when metrics meet or exceed professional standards
-- Acknowledgment when metrics surpass typical amateur performance
+- EXACTLY 3 bullet points - no more, no less
+- Use encouraging, positive language 
+- NO numbers or statistics - focus on qualitative descriptions
+- Reference professional standards without mentioning specific metrics
+- Recognition when mechanics are working well
+- Explain timing in swing when relevant (during backswing, at impact, etc.)
+- Use supportive tone appropriate for young golfers
 
 **For WEAKNESSES** - Must include:
-- Specific metric gaps from professional standards
-- Comparison to amateur examples to show relative standing
-- Quantified differences (e.g., "15° below professional minimum," "20% gap from professional range")
-- Impact on overall performance potential
+- EXACTLY 3 bullet points - no more, no less
+- NO numbers, degrees, or specific measurements
+- Focus on the IMPACT of the issue (what it's affecting) rather than the measurement
+- Use phrases like "less than optimal" or "more than ideal" instead of specific amounts
+- Explain HOW the weakness affects performance (power, accuracy, consistency, etc.)
+- DO NOT provide improvement suggestions - save those for the Priority Improvements section
+- Frame as areas that may be affecting performance rather than deficiencies
 
 **For PRIORITY_IMPROVEMENTS** - Must include:
-- Current metric value vs professional benchmark range
-- Reference to amateur examples showing improvement potential
-- Specific target values based on professional standards
-- Realistic progression steps based on amateur improvement patterns
-- Clear explanation of why this improvement would impact overall performance
+- EXACTLY 3 numbered items - no more, no less
+- NO header formatting like [Most Critical], [Important], [Focus Area] in the descriptions
+- Use encouraging language like "try increasing" or "focus on" instead of "you need to"
+- When in the swing this should happen (during downswing, backswing, at impact, etc.)
+- Reference professional standards gently without excessive numerical comparisons
+- Clear explanation of benefits and positive outcomes
+- Maintain supportive, coaching tone throughout
 
 **EXAMPLE ANALYSIS STRUCTURE:**
 
 **STRENGTHS:**
-• Shoulder rotation of 118° nearly matches professional standard (120°) and exceeds many amateur examples (60-120° range)
-• Weight shift of 85% falls within professional range (70-88%) and surpasses amateur struggles (50-90% range)
+• Your shoulder rotation shows great upper body mobility during your backswing, matching what we see in professional swings
+• Your weight transfer demonstrates excellent fundamentals in shifting from your back foot to your front foot through impact
+• Your posture maintains good stability throughout most of your swing, showing solid foundational mechanics
 
 **WEAKNESSES:**  
-• Hip rotation of 28° falls significantly below professional minimum (60°) and amateur body-dominant examples (90°)
-• Energy transfer of 62% below professional range (88-96%) and some amateur achievements (96.7%)
+• Your hip rotation is less than optimal, which may be limiting your power generation and overall swing efficiency
+• Your head movement during the swing is more than ideal, which could be affecting your accuracy and consistency throughout your shots
+• Your wrist action could use some work, which may be affecting your ability to generate lag and create powerful impact
 
 **PRIORITY_IMPROVEMENTS:**
-1. [Most Critical] Hip Mobility Development - Current 28° vs professional 60-90° and amateur body-dominant 90°. Target 45° as next milestone toward professional range.
-2. [Important] Kinematic Sequence Optimization - Current 70% vs professional 100% and amateur range 66.8-100%. Improve to 85% through better hip-shoulder coordination.
+1. Hip Mobility Development - Try increasing your hip rotation during the downswing. This will help you engage your lower body more effectively and unlock substantial power gains in your swing.
+2. Head Stability Enhancement - Focus on keeping your head more stable throughout your swing. This improvement will help enhance your accuracy and consistency on every shot.
+3. Wrist Hinge Optimization - Work on creating more wrist angle during your backswing to improve lag and power transfer. This will help add distance and control to your shots.
 
 PERFORMANCE CLASSIFICATION SCALE:
 - **90-100%**: Professional/Tour level - Consistently meets or exceeds professional benchmarks across all metrics
@@ -611,26 +621,27 @@ IMPORTANT ANALYSIS PRIORITIES (Based on Real Professional Data):
 4. **DE-EMPHASIZE - Timing Variables**: Frame counts, tempo ratios, and duration metrics vary significantly based on video capture rates and personal style preferences
 
 **SCORING CALIBRATION GUIDELINES:**
-- **Hip/Shoulder Rotation Analysis**: Compare to professional minimums (60° hip, 120° shoulder) and amateur ranges
-- **Energy Transfer <70%**: Score below 60%, compare to amateur range (56.8-96.7%)
-- **Sequential Kinematic <80%**: Score below 70%, reference amateur examples (66.8-100%)
-- **Power Accumulation <90%**: Score below 80%, compare to amateur achievements (82.1-100%)
-- **Head Movement >10 inches**: Major limitation, compare to professional (2-8in) and amateur (3-8in) ranges
-- **Weight Shift <60%**: Significant weakness, reference amateur struggles (50%) vs successes (90%)
+- **Hip/Shoulder Rotation Analysis**: Compare to professional minimums (60° hip, 120° shoulder)
+- **Energy Transfer <70%**: Score below 60%, reference professional range (88-96%)
+- **Sequential Kinematic <80%**: Score below 70%, reference professional standards (100%)
+- **Power Accumulation <90%**: Score below 80%, compare to professional benchmarks (100%)
+- **Head Movement >10 inches**: Major limitation, compare to professional standards (2-8in)
+- **Weight Shift <60%**: Significant weakness, reference professional range (70-88%)
 
 IMPORTANT FORMATTING RULES:
 - Use the exact headers shown above (PERFORMANCE_CLASSIFICATION, STRENGTHS, WEAKNESSES, PRIORITY_IMPROVEMENTS)
 - For performance classification, use format: [XX%] where XX is the percentage (10-100)
 - For strengths and weaknesses, use bullet points (•) 
 - For priority improvements, use numbered format (1., 2., 3.) with priority level in brackets
-- Each priority improvement must have: [Priority Level] Topic Name - Full description with benchmark comparisons
-- **MANDATORY**: Include specific metric values and benchmark comparisons in every strength, weakness, and improvement
-- **MANDATORY**: Reference professional standards and amateur examples in analysis content
-- Provide complete sentences with quantified comparisons - no generic statements
+- Each priority improvement must have: [Priority Level] Topic Name - Full description with professional benchmark comparisons
+- **MANDATORY**: Include specific metric values and professional benchmark comparisons in every strength, weakness, and improvement
+- **MANDATORY**: Reference professional standards in analysis content
+- Provide clear directional guidance (more/less rotation, when in swing) rather than overly technical numerical comparisons
 - Focus analysis on biomechanical consistency rather than timing variations
-- **CRITICAL**: Every analysis point must tie back to the professional benchmarks and amateur examples provided
+- **CRITICAL**: Every analysis point must tie back to the professional benchmarks provided
+- Avoid absolute language like "perfect" or "flawless" - use terms like "very good" or "meets standards"
 
-Remember: Use the professional benchmarks (Atthaya Thitikul: 63.4° hip, 120° shoulder, 96.1% energy transfer, etc.) and amateur examples (23-90° hip rotation range, 56.8-96.7% energy transfer range, etc.) as the foundation for ALL analysis content, not just the percentage classification. Every strength, weakness, and improvement recommendation must include specific metric comparisons to these established benchmarks.
+Remember: Use the professional benchmarks (Atthaya Thitikul: 63.4° hip, 120° shoulder, 96.1% energy transfer, etc.) as the foundation for ALL analysis content, not just the percentage classification. Every strength, weakness, and improvement recommendation must include specific comparisons to professional standards with clear, actionable guidance on what needs to improve and when in the swing.
 """
 
     return prompt
@@ -984,32 +995,24 @@ def display_formatted_analysis(analysis_data):
         if not desc or len(desc) < 10:
             # Provide a more complete description based on the area
             if 'posture' in area.lower():
-                desc = "Work on maintaining proper spine angle and athletic stance throughout the swing for better consistency and power transfer."
+                desc = "Try working on maintaining proper spine angle and athletic stance throughout the swing for better consistency and power transfer."
             elif 'tempo' in area.lower() or 'timing' in area.lower():
                 desc = "Focus on developing a smooth, consistent rhythm that allows for proper sequencing of body movements."
             elif 'rotation' in area.lower():
-                desc = "Improve the coordination and range of motion in your body turn to generate more power and accuracy."
+                desc = "Try improving the coordination and range of motion in your body turn to generate more power and accuracy."
             elif 'weight' in area.lower() or 'shift' in area.lower():
                 desc = "Practice transferring weight from back foot to front foot during the swing for better balance and power."
             elif 'knee' in area.lower():
                 desc = "Work on maintaining proper knee flex and stability throughout the swing for better foundation and consistency."
             elif 'hip' in area.lower():
-                desc = "Focus on improving hip mobility and thrust timing to enhance power generation and sequencing."
+                desc = "Focus on improving hip mobility and rotation during the downswing to enhance power generation and sequencing."
             elif 'chest' in area.lower():
-                desc = "Improve chest rotation efficiency to better coordinate upper body movement with the swing sequence."
+                desc = "Try improving chest rotation efficiency to better coordinate upper body movement with the swing sequence."
             else:
                 desc = description  # Use the full description if we can't categorize it
         
-        # Display using Streamlit's native components
-        if rank == 1:
-            st.error(f"**{rank}. MOST CRITICAL: {area}**")
-            st.write(desc)
-        elif rank == 2:
-            st.warning(f"**{rank}. IMPORTANT: {area}**")
-            st.write(desc)
-        else:
-            st.info(f"**{rank}. FOCUS AREA: {area}**")
-            st.write(desc)
+        # Display using simple bullet points instead of colored boxes
+        st.markdown(f"**{rank}. {area}:** {desc}")
         
         st.write("")  # Add spacing between items
 

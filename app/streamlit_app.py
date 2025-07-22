@@ -31,7 +31,7 @@ from app.utils.comparison import create_key_frame_comparison, extract_key_swing_
 st.set_page_config(page_title="Par-ity Project: Golf Swing Analysis 🏌️‍♀️",
                    page_icon="🏌️‍♀️",
                    layout="wide",
-                   initial_sidebar_state="expanded")
+                   initial_sidebar_state="collapsed")
 
 
 # Define functions
@@ -106,8 +106,6 @@ def main():
             'trajectory_data': None,
             'sample_rate': None
         }
-    if 'pro_reference_path' not in st.session_state:
-        st.session_state.pro_reference_path = None
     
     # Add session cleanup - clean up old files when starting a new session
     if 'session_initialized' not in st.session_state:
@@ -116,99 +114,26 @@ def main():
             st.info(f"🗑️ Cleaned up {cleanup_result['files_removed']} old files ({cleanup_result['space_freed_mb']} MB freed)")
         st.session_state.session_initialized = True
 
-    # Sidebar for configuration
-    st.sidebar.title("Configuration")
+    # Automatic cleanup function
+    def perform_cleanup():
+        """Perform automatic cleanup of temporary files"""
+        cleanup_result = cleanup_downloads_directory(keep_annotated=False)
+        return cleanup_result
 
-    # Add Reset Session button
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🗑️ Reset Session & Clean Files", help="Clear all session data and remove downloaded files"):
-        # Clean up downloads directory
-        cleanup_result = cleanup_downloads_directory(keep_annotated=False)  # Remove all files including annotated
-        
-        # Clear session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        
-        st.sidebar.success(f"Session reset! Cleaned {cleanup_result.get('files_removed', 0)} files ({cleanup_result.get('space_freed_mb', 0)} MB freed)")
-        st.rerun()
-    
-    st.sidebar.markdown("---")
-
-    # Check available LLM services
+    # Set automatic defaults (no user configuration needed)
+    # Check available LLM services and enable automatically if available
     llm_services = check_llm_services()
-    any_service_available = llm_services['ollama'][
-        'available'] or llm_services['openai']['available']
-
-    # Option to enable/disable GPT analysis with better explanation
-    st.sidebar.markdown("### LLM Analysis Settings")
-
-    # Show service status
-    if llm_services['ollama']['available']:
-        st.sidebar.success(
-            f"✅ Ollama configured: {llm_services['ollama']['config']['model']}"
-        )
-
-    if llm_services['openai']['available']:
-        st.sidebar.success("✅ OpenAI configured")
-
-    if not any_service_available:
-        st.sidebar.info("ℹ️ No LLM services configured")
-
-    # Automatically enable if services are available, otherwise allow manual control
-    if any_service_available:
-        enable_gpt = st.sidebar.checkbox(
-            "Enable LLM Analysis",
-            value=True,  # Automatically enabled when services are available
-            help=
-            "Uses configured LLM services (Ollama/OpenAI) for personalized analysis."
-        )
-    else:
-        enable_gpt = st.sidebar.checkbox(
-            "Enable LLM Analysis",
-            value=False,  # Disabled by default when no services
-            help="Configure Ollama or OpenAI in secrets to enable LLM analysis."
-        )
-
-    if enable_gpt and not any_service_available:
-        st.sidebar.warning(
-            "⚠️ No LLM services configured. Configure Ollama or OpenAI in your .streamlit/secrets.toml file."
-        )
-    elif enable_gpt:
-        if llm_services['ollama']['available'] and llm_services['openai'][
-                'available']:
-            st.sidebar.info("🔄 Will try Ollama first, then OpenAI as fallback")
-        elif llm_services['ollama']['available']:
-            st.sidebar.info("🦙 Using Ollama for analysis")
-        elif llm_services['openai']['available']:
-            st.sidebar.info("🤖 Using OpenAI for analysis")
-    else:
-        st.sidebar.info("Using sample analysis mode (no LLM required)")
-
-    # Frame processing rate for YOLO
-    sample_rate = st.sidebar.slider(
-        "Frame Processing Rate (YOLO)",
-        min_value=1,
-        max_value=10,
-        value=1,
-        help=
-        "Process every Nth frame. 1 = all frames (most accurate), higher values = faster but less accurate.")
-        
-    # Pro reference toggle
-    enable_pro_comparison = st.sidebar.checkbox(
-        "Enable Pro Comparison",
-        value=True,
-        help="Compare your swing with a professional golfer reference"
-    )
+    any_service_available = llm_services['ollama']['available'] or llm_services['openai']['available']
     
-    # Pro reference URL input
-    if enable_pro_comparison:
-        pro_url = st.sidebar.text_input(
-            "Pro Golfer Reference URL",
-            value="https://www.youtube.com/shorts/geR666LWSHg",
-            help="YouTube URL of professional golfer swing (default provided)"
-        )
-    else:
-        pro_url = None
+    # Automatically enable LLM analysis if services are available
+    enable_gpt = any_service_available
+    
+    # Set default frame processing rate (1 = all frames for best accuracy)
+    sample_rate = 1
+    
+    # Disable pro comparison feature entirely
+    enable_pro_comparison = False
+    pro_url = None
 
     # Video input options
     st.header("Video Input")
