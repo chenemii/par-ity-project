@@ -237,9 +237,8 @@ def main():
                 'prompt': prompt
             }
 
-            # Clean up the original video file after processing (keep frames in memory)
-            st.info("🗑️ Cleaning up original video file to save space...")
-            cleanup_video_file(video_path)
+            # Keep the original video file for potential annotation
+            # Video will be cleaned up when user uploads a new video or session ends
 
             # Present the options after analysis
             st.subheader("What would you like to do next?")

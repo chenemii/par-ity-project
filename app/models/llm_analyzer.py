@@ -392,29 +392,43 @@ Use these professional standards as your 100% reference for scoring. These repre
 - Energy Transfer: 88.0%, Power Accumulation: 100%, Potential Distance: 286 yards
 - Sequential Kinematic Sequence: 100%, Swing Plane Consistency: 85%
 
+**Rose Zhang (LPGA Tour Professional):**
+- Hip Rotation: 90°, Shoulder Rotation: 120°, Posture Score: 98.0%
+- Weight Shift: 89.9%, Arm Extension: 79.5%, Wrist Hinge: 112.8°
+- Energy Transfer: 96.6%, Power Accumulation: 100%, Potential Distance: 296 yards
+- Sequential Kinematic Sequence: 100%, Swing Plane Consistency: 85%
+- Speed Generation: Body-dominant
+
+**Lydia Ko (LPGA Tour Professional):**
+- Hip Rotation: 90°, Shoulder Rotation: 120°, Posture Score: 99.2%
+- Weight Shift: 66.2%, Arm Extension: 62.1%, Wrist Hinge: 120°
+- Energy Transfer: 88.7%, Power Accumulation: 100%, Potential Distance: 286 yards
+- Sequential Kinematic Sequence: 100%, Swing Plane Consistency: 70%
+- Speed Generation: Body-dominant
+
 ### **PROFESSIONAL STANDARDS CALIBRATION (100% Level):**
 **Core Biomechanical Metrics:**
-- **Hip Rotation**: 60-90° (Exceptional body turn and flexibility)
-- **Shoulder Rotation**: 120° (Full shoulder coil for maximum power)
-- **Posture Score**: 95-98% (Exceptional spine angle consistency)
-- **Weight Shift**: 70-88% (Excellent weight transfer to lead side)
+- **Hip Rotation**: 25-90° (Professional range - multiple successful approaches)
+- **Shoulder Rotation**: 60-120° (Professional upper body coil range)
+- **Posture Score**: 95-99% (Exceptional spine angle consistency across all professionals)
+- **Weight Shift**: 53-90% (Professional range varies significantly by style)
 
 **Upper Body Excellence:**
-- **Arm Extension**: 96-100% (Near-perfect extension at impact)
-- **Wrist Hinge**: 95-120° (Optimal lag and release timing)
-- **Swing Plane Consistency**: 85% (Tour-level repeatability)
-- **Chest Rotation Efficiency**: 100% (Perfect coordination)
+- **Arm Extension**: 62-100% (Wide professional range - Lydia shows low extension can work)
+- **Wrist Hinge**: 93-120° (Optimal lag and release timing)
+- **Swing Plane Consistency**: 70-85% (Professional-level repeatability)
+- **Chest Rotation Efficiency**: 66-100% (Coordination varies by swing style)
 
 **Power & Efficiency Markers:**
-- **Energy Transfer Efficiency**: 88-96% (Elite power transfer)
-- **Power Accumulation**: 100% (Maximum power generation)
-- **Sequential Kinematic Sequence**: 100% (Perfect body sequencing)
-- **Potential Distance**: 285-295 yards (Tour-level power)
+- **Energy Transfer Efficiency**: 65-97% (Wide professional range - multiple successful approaches)
+- **Power Accumulation**: 84-100% (Power generation across all styles)
+- **Sequential Kinematic Sequence**: 69-100% (Professional coordination standards)
+- **Potential Distance**: 242-296 yards (Professional power range)
 
 **Movement Quality Standards:**
-- **Head Movement**: 2-8 inches (Controlled, minimal excessive movement)
-- **Ground Force Efficiency**: 70-88% (Excellent ground interaction)
-- **Hip Thrust**: 40-100% (Strong lower body drive)
+- **Head Movement**: 1-8 inches (Controlled movement varies by professional)
+- **Ground Force Efficiency**: 53-90% (Professional ground interaction range)
+- **Hip Thrust**: 30-100% (Lower body drive varies significantly)
 
 ### **AMATEUR REFERENCE EXAMPLES FOR CALIBRATION:**
 
@@ -427,24 +441,6 @@ Use these professional standards as your 100% reference for scoring. These repre
 - Head Movement: 8.0in lateral, 6.0in vertical (Excessive movement)
 - Speed Generation: Mixed
 
-**50-60% Level Amateur (Male #1 - Body-Dominant):**
-- Hip Rotation: 90°, Shoulder Rotation: 84.8° (Great hip turn, limited shoulder)
-- Posture Score: 90.7%, Weight Shift: 90.0% (Solid fundamentals)
-- Arm Extension: 100.0%, Wrist Hinge: 66.8° (Good extension and lag)
-- Energy Transfer: 91.8%, Power Accumulation: 100.0% (Strong power generation)
-- Potential Distance: 290 yards, Sequential Kinematic: 100.0%
-- Hip Thrust: 100.0%, Ground Force: 90.0% (Excellent lower body)
-- Speed Generation: Body-dominant
-
-**50-60% Level Amateur (Male #2 - Body-Dominant):**
-- Hip Rotation: 90°, Shoulder Rotation: 120° (Excellent rotation both)
-- Posture Score: 89.3%, Weight Shift: 90.0% (Good fundamentals)
-- Arm Extension: 99.6%, Wrist Hinge: 52.6° (Great extension, limited lag)
-- Energy Transfer: 96.7%, Power Accumulation: 100.0% (Excellent coordination)
-- Potential Distance: 296 yards, Sequential Kinematic: 100.0%
-- Tempo Issues: Very fast downswing (2.86 ratio vs ideal ~0.3)
-- Speed Generation: Body-dominant
-
 **50-60% Level Amateur (Female - Arms-Dominant):**
 - Hip Rotation: 25°, Shoulder Rotation: 60° (Limited body rotation)
 - Posture Score: 80.6%, Weight Shift: 50.0% (Needs improvement)
@@ -455,14 +451,19 @@ Use these professional standards as your 100% reference for scoring. These repre
 - Ground Force: 50.0%, Hip Thrust: 30.0% (Weak lower body)
 - Speed Generation: Arms-dominant
 
-**CRITICAL INSIGHTS FROM AMATEUR ANALYSIS:**
-1. **Hip Rotation Varies Significantly**: From 23-90° in amateurs vs 60-90° in professionals
-2. **Shoulder Rotation Range**: 60-120° in amateurs, professionals consistently at 120°
-3. **Wrist Hinge Compensation**: Some amateurs (116.6°) exceed professional standards to compensate for limited body rotation
-4. **Power Generation Methods**: Body-dominant amateurs can achieve near-professional distances despite technical limitations
-5. **Head Movement Control**: Varies dramatically (3-8 inches) - major differentiator
-6. **Energy Transfer Efficiency**: Ranges from 56.8-96.7% in amateurs vs 88-96% in professionals
-7. **Weight Transfer Issues**: Some amateurs struggle with weight shift (50% vs professional 70-88%)
+**CRITICAL INSIGHTS FROM PROFESSIONAL AND AMATEUR ANALYSIS:**
+1. **Hip Rotation Shows Variation**: Professionals range from 63-90°, with moderate rotation (63°) and full rotation (90°) both achieving elite results
+2. **Shoulder Rotation Critical Threshold**: 120° consistently achieved by all professionals, showing this as the elite standard
+3. **Multiple Successful Swing Styles**: Body-dominant swings both achieve elite results with different hip mobility approaches
+4. **Posture Consistency Universal**: All professionals maintain 95-99% posture scores regardless of swing style
+5. **Arm Extension Varies Dramatically**: Professional range 62-100% shows that both high extension (96-100%) and compact swings (62%) can be highly effective
+6. **Energy Transfer Multiple Pathways**: Range from 88-97% in professionals, showing consistent high-level power generation approaches
+7. **Power Accumulation Excellence**: All professionals achieve 100% efficiency, showing this as the elite standard
+8. **Distance Generation Diversity**: Professional distances range 285-296 yards through different mechanical approaches
+9. **Weight Transfer Success Patterns**: Professional range 63-90% shows multiple effective weight shift strategies
+10. **Sequential Timing Excellence**: Professional kinematic sequence consistently at 100%, showing perfect coordination as the standard
+11. **Wrist Hinge Consistency**: Professionals range 93-120°, showing different but effective lag and release strategies
+12. **Ground Force Utilization Excellence**: Range 63-90% with elite players achieving consistent high efficiency through proper lower body mechanics
 
 ## CURRENT SWING ANALYSIS
 
@@ -523,125 +524,72 @@ Use these professional standards as your 100% reference for scoring. These repre
 
 ## ANALYSIS INSTRUCTIONS
 
-Using the professional benchmarks above as your calibration reference, provide your analysis in the following EXACT structured format:
+**GOLF SWING ANALYSIS FORMAT**
+Use the benchmarks above to guide your evaluation. Follow this exact format:
 
-**PERFORMANCE_CLASSIFICATION:** [XX%] (where XX is a percentage from 10% to 100%)
+**PERFORMANCE_CLASSIFICATION:** [XX%]
+(XX = number from 10% to 100%)
 
 **STRENGTHS:**
-• [Specific strength with direct comparison to professional benchmarks - e.g. "Your shoulder rotation shows great upper body mobility during your backswing, similar to what we see in professional swings"]
-• [Another strength with benchmark comparison - e.g. "Your arm extension at impact is really strong, demonstrating excellent fundamentals"]
-• [Third strength with specific metric comparison to benchmarks - e.g. "Your weight transfer demonstrates solid fundamentals in shifting from back foot to front foot through impact"]
+List exactly 3 strengths. Each should:
+- Be qualitative (no numbers)
+- Compare to professional benchmarks
+- Highlight what's working well and when (e.g. during backswing, at impact)
+- Use a positive, supportive tone
+
+Example:
+• Your shoulder rotation during the backswing shows strong upper body mobility, similar to professional swings.
 
 **WEAKNESSES:**
-• [Specific area describing impact without numbers - e.g. "Your hip rotation is less than optimal, which may be limiting your power generation and overall swing efficiency"]
-• [Another area with impact description - e.g. "Your head movement during the swing is more than ideal, which could be affecting your accuracy and consistency"]
-• [Third area with impact-focused description - e.g. "Your wrist action could use some work, which may be affecting your ability to generate lag and create powerful impact"]
+List exactly 3 areas for improvement. Each should:
+- Use numbers when necessary, and only use 1 number per weakness (for example, the difference between your metric and the professional standard)
+- Describe the impact on power, accuracy, or consistency
+- Use phrases like "less than optimal" or "more than ideal"
+- Don't suggest fixes here—save those for the next section
+
+Example:
+• Your hip rotation is less than optimal, which may reduce your power through the downswing.
 
 **PRIORITY_IMPROVEMENTS:**
-1. Topic Name - Explain what to focus on and when in swing, with encouraging tone and clear benefit explanation
-2. Topic Name - What to work on with supportive guidance and positive reinforcement about potential improvements  
-3. Topic Name - Area to focus on with gentle direction and realistic goals
+List exactly 3 improvement areas. Each should:
+- Include the topic name
+- Explain what to improve and when in the swing
+- Reference benchmarks when relevant, without being too technical
+- Use coaching-style language (e.g. "try increasing...")
+- Emphasize benefits
 
-**MANDATORY REQUIREMENTS FOR EACH SECTION:**
+Example:
+Hip Mobility: Try increasing your hip rotation during the downswing to unlock more lower body power.
 
-**For STRENGTHS** - Must include:
-- EXACTLY 3 bullet points - no more, no less
-- Use encouraging, positive language 
-- NO numbers or statistics - focus on qualitative descriptions
-- Reference professional standards without mentioning specific metrics
-- Recognition when mechanics are working well
-- Explain timing in swing when relevant (during backswing, at impact, etc.)
-- Use supportive tone appropriate for young golfers
+**SCORING GUIDELINES (Use to help decide % score)**
 
-**For WEAKNESSES** - Must include:
-- EXACTLY 3 bullet points - no more, no less
-- NO numbers, degrees, or specific measurements
-- Focus on the IMPACT of the issue (what it's affecting) rather than the measurement
-- Use phrases like "less than optimal" or "more than ideal" instead of specific amounts
-- Explain HOW the weakness affects performance (power, accuracy, consistency, etc.)
-- DO NOT provide improvement suggestions - save those for the Priority Improvements section
-- Frame as areas that may be affecting performance rather than deficiencies
+| Metric | Professional Standard | Note |
+|--------|----------------------|------|
+| Hip Rotation | 25°–90° | <25° is weak |
+| Shoulder Rotation | 60°–120° | <60° is weak |
+| Energy Transfer | 65–97% | <65% = score <60% |
+| Sequential Kinematics | 69–100% | <69% = score <70% |
+| Weight Shift | 53–90% | <53% = weakness |
+| Head Movement | 1–8 in | >8 in = major issue |
+| Arm Extension | 62–100% | <62% = weakness |
+| Power Accumulation | 84–100% | <84% = weakness |
 
-**For PRIORITY_IMPROVEMENTS** - Must include:
-- EXACTLY 3 numbered items - no more, no less
-- NO header formatting like [Most Critical], [Important], [Focus Area] in the descriptions
-- Use encouraging language like "try increasing" or "focus on" instead of "you need to"
-- When in the swing this should happen (during downswing, backswing, at impact, etc.)
-- Reference professional standards gently without excessive numerical comparisons
-- Clear explanation of benefits and positive outcomes
-- Maintain supportive, coaching tone throughout
+**Classification Bands:**
+- **90–100%**: Tour-level
+- **80–89%**: Advanced amateur
+- **70–79%**: Skilled
+- **60–69%**: Intermediate
+- **50–59%**: Developing
+- **40–49%**: Beginner
+- **10–39%**: Novice
 
-**EXAMPLE ANALYSIS STRUCTURE:**
-
-**STRENGTHS:**
-• Your shoulder rotation shows great upper body mobility during your backswing, matching what we see in professional swings
-• Your weight transfer demonstrates excellent fundamentals in shifting from your back foot to your front foot through impact
-• Your posture maintains good stability throughout most of your swing, showing solid foundational mechanics
-
-**WEAKNESSES:**  
-• Your hip rotation is less than optimal, which may be limiting your power generation and overall swing efficiency
-• Your head movement during the swing is more than ideal, which could be affecting your accuracy and consistency throughout your shots
-• Your wrist action could use some work, which may be affecting your ability to generate lag and create powerful impact
-
-**PRIORITY_IMPROVEMENTS:**
-1. Hip Mobility Development - Try increasing your hip rotation during the downswing. This will help you engage your lower body more effectively and unlock substantial power gains in your swing.
-2. Head Stability Enhancement - Focus on keeping your head more stable throughout your swing. This improvement will help enhance your accuracy and consistency on every shot.
-3. Wrist Hinge Optimization - Work on creating more wrist angle during your backswing to improve lag and power transfer. This will help add distance and control to your shots.
-
-PERFORMANCE CLASSIFICATION SCALE:
-- **90-100%**: Professional/Tour level - Consistently meets or exceeds professional benchmarks across all metrics
-- **80-89%**: Advanced amateur - Meets most professional standards with minor gaps in 1-2 areas
-- **70-79%**: Skilled amateur - Solid fundamentals with some gaps from professional standards
-- **60-69%**: Intermediate - Good basic mechanics but several areas need improvement to reach professional level
-- **50-59%**: Developing intermediate - Basic swing structure present but multiple areas below professional standards
-- **40-49%**: Advanced beginner - Some fundamentals in place but significant gaps in most areas
-- **30-39%**: Beginner - Basic swing motion present but major improvements needed across most metrics
-- **20-29%**: Novice - Limited swing fundamentals, extensive work needed on basic mechanics
-- **10-19%**: Complete beginner - Minimal swing structure, needs comprehensive fundamental development
-
-IMPORTANT ANALYSIS PRIORITIES (Based on Real Professional Data):
-1. **PRIMARY FOCUS - Critical Biomechanical Differentiators**: 
-   - Hip Rotation (Professional: 60-90°, Amateur Range: 23-90°) - MOST IMPORTANT
-   - Shoulder Rotation (Professional: 120°, Amateur Range: 60-120°) - MOST IMPORTANT  
-   - Sequential Kinematic Sequence (Professional: 100%, Amateur Range: 66.8-100%)
-   - Energy Transfer Efficiency (Professional: 88-96%, Amateur Range: 56.8-96.7%)
-
-2. **SECONDARY FOCUS - Power Generation Mechanics**: 
-   - Power Accumulation (Professional: 100%, Amateur Range: 82.1-100%)
-   - Chest Rotation Efficiency (Professional: 100%, Amateur Range: 53.7-100%)
-   - Wrist Hinge (Professional: 95-120°, Amateur Range: 49.4-116.6°)
-   - Swing Plane Consistency (Professional: 85%, Amateur: 70-85%)
-
-3. **TERTIARY FOCUS - Refinement Metrics**: 
-   - Posture Score (Professional: 95-98%, Amateur Range: 80.6-90.7%)
-   - Arm Extension (Professional: 96-100%, Amateur Range: 94.8-100%)
-   - Weight Shift (Professional: 70-88%, Amateur Range: 50-90%)
-   - Ground Force Efficiency (Professional: 70-88%, Amateur Range: 50-90%)
-
-4. **DE-EMPHASIZE - Timing Variables**: Frame counts, tempo ratios, and duration metrics vary significantly based on video capture rates and personal style preferences
-
-**SCORING CALIBRATION GUIDELINES:**
-- **Hip/Shoulder Rotation Analysis**: Compare to professional minimums (60° hip, 120° shoulder)
-- **Energy Transfer <70%**: Score below 60%, reference professional range (88-96%)
-- **Sequential Kinematic <80%**: Score below 70%, reference professional standards (100%)
-- **Power Accumulation <90%**: Score below 80%, compare to professional benchmarks (100%)
-- **Head Movement >10 inches**: Major limitation, compare to professional standards (2-8in)
-- **Weight Shift <60%**: Significant weakness, reference professional range (70-88%)
-
-IMPORTANT FORMATTING RULES:
-- Use the exact headers shown above (PERFORMANCE_CLASSIFICATION, STRENGTHS, WEAKNESSES, PRIORITY_IMPROVEMENTS)
-- For performance classification, use format: [XX%] where XX is the percentage (10-100)
-- For strengths and weaknesses, use bullet points (•) 
-- For priority improvements, use numbered format (1., 2., 3.) with priority level in brackets
-- Each priority improvement must have: [Priority Level] Topic Name - Full description with professional benchmark comparisons
-- **MANDATORY**: Include specific metric values and professional benchmark comparisons in every strength, weakness, and improvement
-- **MANDATORY**: Reference professional standards in analysis content
-- Provide clear directional guidance (more/less rotation, when in swing) rather than overly technical numerical comparisons
-- Focus analysis on biomechanical consistency rather than timing variations
-- **CRITICAL**: Every analysis point must tie back to the professional benchmarks provided
-- Avoid absolute language like "perfect" or "flawless" - use terms like "very good" or "meets standards"
-
-Remember: Use the professional benchmarks (Atthaya Thitikul: 63.4° hip, 120° shoulder, 96.1% energy transfer, etc.) as the foundation for ALL analysis content, not just the percentage classification. Every strength, weakness, and improvement recommendation must include specific comparisons to professional standards with clear, actionable guidance on what needs to improve and when in the swing.
+**STYLE & FORMATTING RULES:**
+- Use these headers: PERFORMANCE_CLASSIFICATION, STRENGTHS, WEAKNESSES, PRIORITY_IMPROVEMENTS
+- Avoid statistics in strengths/weaknesses (okay in improvements if helpful)
+- Tie all points to professional standards
+- Use a positive, coaching tone throughout
+- Avoid saying "perfect" — say "strong" or "meets standards"
+- Focus on biomechanics, not timing (e.g. tempo, frame count)
 """
 
     return prompt
@@ -707,22 +655,63 @@ def parse_and_format_analysis(raw_analysis):
     priority_match = re.search(r'\*\*PRIORITY_IMPROVEMENTS:\*\*\s*(.*?)$', raw_analysis, re.IGNORECASE | re.DOTALL)
     if priority_match:
         priority_text = priority_match.group(1)
-        # Extract numbered items with priority levels and descriptions
-        priority_items = re.findall(r'(\d+)\.\s*\[(.*?)\]\s*(.*?)(?=\d+\.\s*\[|\Z)', priority_text, re.DOTALL)
-        for num, priority_level, description in priority_items[:3]:  # Limit to 3
-            # Clean up the description
-            description = description.strip()
-            # Remove any trailing incomplete sentences
-            if description.endswith('...') or len(description.split('.')[-1].strip()) < 5:
-                sentences = description.split('.')
-                if len(sentences) > 1:
-                    description = '.'.join(sentences[:-1]) + '.'
-            
-            formatted_analysis['priority_improvements'].append({
-                'rank': int(num),
-                'priority_level': priority_level.strip(),
-                'description': f"[{priority_level.strip()}] {description}"
-            })
+        # First try to parse numbered format: "1. Topic: Description"
+        numbered_items = re.findall(r'(\d+)\.\s*([^1-9\n]*?)(?=\d+\.|$)', priority_text, re.DOTALL)
+        
+        if numbered_items:
+            for num, description in numbered_items[:3]:  # Limit to 3
+                description = description.strip()
+                if description and len(description) > 10:  # Only add if meaningful content
+                    formatted_analysis['priority_improvements'].append({
+                        'rank': int(num),
+                        'description': description
+                    })
+        else:
+            # Try to parse simple format without numbers: "Topic: Description"
+            # Split by lines and look for patterns like "Topic: Description"
+            lines = [line.strip() for line in priority_text.split('\n') if line.strip()]
+            for i, line in enumerate(lines[:3]):  # Limit to 3
+                if ':' in line and len(line) > 15:  # Has colon and meaningful length
+                    formatted_analysis['priority_improvements'].append({
+                        'rank': i + 1,
+                        'description': line
+                    })
+    
+    # Ensure exactly 3 priority improvements with distinct topics
+    if len(formatted_analysis['priority_improvements']) < 3:
+        # Define 3 distinct improvement areas
+        common_improvements = [
+            "Hip Mobility: Try increasing your hip rotation during the downswing to unlock more lower body power and improve overall swing efficiency.",
+            "Arm Extension: Focus on achieving better arm extension at impact to improve power transfer and ball striking consistency.",
+            "Weight Transfer: Work on shifting your weight more effectively from back foot to front foot during the swing to enhance balance and power generation."
+        ]
+        
+        # Get existing topics to avoid duplicates
+        existing_topics = set()
+        for improvement in formatted_analysis['priority_improvements']:
+            topic = improvement['description'].split(':')[0].strip().lower()
+            existing_topics.add(topic)
+        
+        # Add missing improvements, avoiding duplicates
+        current_count = len(formatted_analysis['priority_improvements'])
+        for improvement in common_improvements:
+            if current_count >= 3:
+                break
+            topic = improvement.split(':')[0].strip().lower()
+            if topic not in existing_topics:
+                formatted_analysis['priority_improvements'].append({
+                    'rank': current_count + 1,
+                    'description': improvement
+                })
+                existing_topics.add(topic)
+                current_count += 1
+    
+    # Ensure we have exactly 3 (trim if too many)
+    formatted_analysis['priority_improvements'] = formatted_analysis['priority_improvements'][:3]
+    
+    # Re-rank to ensure proper numbering
+    for i, improvement in enumerate(formatted_analysis['priority_improvements']):
+        improvement['rank'] = i + 1
     
     # Fallback parsing if structured format wasn't used
     if not formatted_analysis['strengths']:
@@ -794,27 +783,27 @@ def parse_and_format_analysis(raw_analysis):
         percentage = formatted_analysis['classification']
         if percentage >= 80:
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Technical Refinement - Fine-tune specific mechanics to achieve consistency at the highest level.'},
-                {'rank': 2, 'description': '[Important] Performance Optimization - Focus on maximizing efficiency and power transfer.'},
-                {'rank': 3, 'description': '[Focus Area] Competitive Preparation - Enhance mental game and course management skills.'}
+                {'rank': 1, 'description': 'Technical Refinement: Fine-tune specific mechanics to achieve consistency at the highest level.'},
+                {'rank': 2, 'description': 'Performance Optimization: Focus on maximizing efficiency and power transfer.'},
+                {'rank': 3, 'description': 'Competitive Preparation: Enhance mental game and course management skills.'}
             ]
         elif percentage >= 60:
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Kinematic Sequence Enhancement - Improve body rotation coordination to generate more power and consistency.'},
-                {'rank': 2, 'description': '[Important] Clubface Control - Enhance swing path consistency for better ball striking accuracy.'},
-                {'rank': 3, 'description': '[Focus Area] Energy Transfer Efficiency - Optimize power transfer throughout the swing to maximize distance.'}
+                {'rank': 1, 'description': 'Kinematic Sequence Enhancement: Improve body rotation coordination to generate more power and consistency.'},
+                {'rank': 2, 'description': 'Clubface Control: Enhance swing path consistency for better ball striking accuracy.'},
+                {'rank': 3, 'description': 'Energy Transfer Efficiency: Optimize power transfer throughout the swing to maximize distance.'}
             ]
         elif percentage >= 40:
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Fundamental Mechanics - Establish consistent posture, grip, and setup positions.'},
-                {'rank': 2, 'description': '[Important] Body Rotation Development - Improve hip and shoulder turn coordination.'},
-                {'rank': 3, 'description': '[Focus Area] Weight Transfer - Develop proper weight shift from back foot to front foot during swing.'}
+                {'rank': 1, 'description': 'Fundamental Mechanics: Establish consistent posture, grip, and setup positions.'},
+                {'rank': 2, 'description': 'Body Rotation Development: Improve hip and shoulder turn coordination.'},
+                {'rank': 3, 'description': 'Weight Transfer: Develop proper weight shift from back foot to front foot during swing.'}
             ]
         else:  # Below 40%
             formatted_analysis['priority_improvements'] = [
-                {'rank': 1, 'description': '[Most Critical] Basic Setup and Posture - Focus on establishing proper spine angle and athletic stance.'},
-                {'rank': 2, 'description': '[Important] Fundamental Swing Motion - Develop basic backswing and downswing mechanics.'},
-                {'rank': 3, 'description': '[Focus Area] Balance and Stability - Improve overall balance throughout the swing motion.'}
+                {'rank': 1, 'description': 'Basic Setup and Posture: Focus on establishing proper spine angle and athletic stance.'},
+                {'rank': 2, 'description': 'Fundamental Swing Motion: Develop basic backswing and downswing mechanics.'},
+                {'rank': 3, 'description': 'Balance and Stability: Improve overall balance throughout the swing motion.'}
             ]
     
     return formatted_analysis
@@ -951,68 +940,15 @@ def display_formatted_analysis(analysis_data):
         rank = priority['rank']
         description = priority['description']
         
-        # Better extraction of improvement area and description
-        area = ""
-        desc = description
-        
-        # Try different patterns to extract the main topic
-        if '[Most Critical]' in description or '[Important]' in description or '[Focus Area]' in description:
-            # Pattern: [Priority Level] Topic - Description
-            pattern = r'\[(.*?)\]\s*(.*?)(?:\s*-\s*(.*))?$'
-            match = re.search(pattern, description)
-            if match:
-                priority_level = match.group(1)
-                area = match.group(2).strip()
-                desc = match.group(3).strip() if match.group(3) else ""
-        elif ':' in description:
-            # Pattern: Topic: Description
+        # For simple "Topic: Description" format, just display it cleanly
+        if ':' in description:
             parts = description.split(':', 1)
-            area = parts[0].strip()
+            topic = parts[0].strip()
             desc = parts[1].strip()
-        elif ' - ' in description:
-            # Pattern: Topic - Description
-            parts = description.split(' - ', 1)
-            area = parts[0].strip()
-            desc = parts[1].strip()
+            st.markdown(f"**{rank}. {topic}:** {desc}")
         else:
-            # Try to extract first meaningful phrase as area
-            words = description.split()
-            if len(words) > 5:
-                # Take first 3-5 words as the area
-                area = ' '.join(words[:4])
-                desc = ' '.join(words[4:])
-            else:
-                area = description
-                desc = ""
-        
-        # Clean up area and description
-        area = area.replace('[Most Critical]', '').replace('[Important]', '').replace('[Focus Area]', '').strip()
-        
-        # Ensure we have meaningful content
-        if not area or len(area) < 5:
-            area = f"Priority {rank} Improvement"
-        
-        if not desc or len(desc) < 10:
-            # Provide a more complete description based on the area
-            if 'posture' in area.lower():
-                desc = "Try working on maintaining proper spine angle and athletic stance throughout the swing for better consistency and power transfer."
-            elif 'tempo' in area.lower() or 'timing' in area.lower():
-                desc = "Focus on developing a smooth, consistent rhythm that allows for proper sequencing of body movements."
-            elif 'rotation' in area.lower():
-                desc = "Try improving the coordination and range of motion in your body turn to generate more power and accuracy."
-            elif 'weight' in area.lower() or 'shift' in area.lower():
-                desc = "Practice transferring weight from back foot to front foot during the swing for better balance and power."
-            elif 'knee' in area.lower():
-                desc = "Work on maintaining proper knee flex and stability throughout the swing for better foundation and consistency."
-            elif 'hip' in area.lower():
-                desc = "Focus on improving hip mobility and rotation during the downswing to enhance power generation and sequencing."
-            elif 'chest' in area.lower():
-                desc = "Try improving chest rotation efficiency to better coordinate upper body movement with the swing sequence."
-            else:
-                desc = description  # Use the full description if we can't categorize it
-        
-        # Display using simple bullet points instead of colored boxes
-        st.markdown(f"**{rank}. {area}:** {desc}")
+            # Fallback for other formats
+            st.markdown(f"**{rank}. {description}**")
         
         st.write("")  # Add spacing between items
 
