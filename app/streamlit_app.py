@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import cv2
 from PIL import Image
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -27,12 +28,564 @@ from app.models.llm_analyzer import generate_swing_analysis, create_llm_prompt, 
 from app.utils.visualizer import create_annotated_video
 from app.utils.comparison import create_key_frame_comparison, extract_key_swing_frames
 
+# Import RAG functionality
+try:
+    from app.golf_swing_rag import GolfSwingRAG
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+    st.warning("RAG functionality not available. Please ensure golf_swing_rag.py is in the app directory.")
+
 # Set page config
 st.set_page_config(page_title="Par-ity Project: Golf Swing Analysis 🏌️‍♀️",
                    page_icon="🏌️‍♀️",
                    layout="wide",
                    initial_sidebar_state="collapsed")
 
+# Custom CSS for RAG interface
+st.markdown("""
+<style>
+    .chat-message {
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    .user-message {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+    }
+    .assistant-message {
+        background-color: #f1f8e9;
+        border-left: 4px solid #4caf50;
+    }
+    .rag-header {
+        color: #2E8B57;
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+@st.cache_resource
+def load_rag_system():
+    """Load and initialize the RAG system (cached for performance)"""
+    if not RAG_AVAILABLE:
+        return None
+    try:
+        with st.spinner("Loading golf swing knowledge base..."):
+            rag = GolfSwingRAG()
+            rag.load_and_process_data()
+            rag.create_embeddings()
+        return rag
+    except Exception as e:
+        st.error(f"Error loading RAG system: {str(e)}")
+        return None
+
+def display_rag_sources(sources):
+    """Display source information in an organized way"""
+    if not sources:
+        return
+    
+    st.subheader("📚 Sources")
+    for i, source in enumerate(sources[:3]):  # Show top 3 sources
+        with st.expander(f"Source {i+1}: {source['metadata']['title'][:60]}..."):
+            st.write(f"**Similarity Score:** {source['similarity_score']:.3f}")
+            st.write(f"**Source:** {source['metadata']['source']}")
+            if source['metadata']['url']:
+                st.write(f"**URL:** [Link]({source['metadata']['url']})")
+            st.write("**Content:**")
+            st.write(source['chunk'][:500] + "..." if len(source['chunk']) > 500 else source['chunk'])
+
+def render_rag_interface():
+    """Render the RAG chatbot interface"""
+    st.markdown('<div class="rag-header">⛳ Golf Swing Technique Assistant</div>', unsafe_allow_html=True)
+    st.markdown("Get expert advice on golf swing technique based on 2,000+ professional instruction articles")
+    
+    # Initialize RAG system
+    if 'rag_system' not in st.session_state and RAG_AVAILABLE:
+        st.session_state.rag_system = load_rag_system()
+    
+    # Initialize chat history if not exists
+    if 'rag_chat_history' not in st.session_state:
+        st.session_state.rag_chat_history = []
+    
+    if not RAG_AVAILABLE or st.session_state.get('rag_system') is None:
+        st.error("RAG system is not available. Please check the setup.")
+        return
+    
+    # Check if we have video analysis data to enhance responses
+    user_swing_context = ""
+    if st.session_state.get('video_analyzed') and 'analysis_data' in st.session_state:
+        stored_data = st.session_state.analysis_data
+        
+        # Use the structured analysis_data instead of just the prompt
+        if 'analysis_data' in stored_data:
+            structured_analysis = stored_data['analysis_data']
+            
+            # Format the structured data for better RAG context
+            user_swing_context = f"""
+
+USER'S SWING ANALYSIS:
+
+=== SWING TIMING & PHASES ===
+Swing Phases:
+- Setup: {structured_analysis.get('swing_phases', {}).get('setup', {}).get('frame_count', 0)} frames
+- Backswing: {structured_analysis.get('swing_phases', {}).get('backswing', {}).get('frame_count', 0)} frames  
+- Downswing: {structured_analysis.get('swing_phases', {}).get('downswing', {}).get('frame_count', 0)} frames
+- Impact: {structured_analysis.get('swing_phases', {}).get('impact', {}).get('frame_count', 0)} frames
+- Follow-through: {structured_analysis.get('swing_phases', {}).get('follow_through', {}).get('frame_count', 0)} frames
+
+Timing Metrics:
+- Tempo Ratio (down:back): {structured_analysis.get('timing_metrics', {}).get('tempo_ratio', 'N/A')}
+- Estimated Club Speed: {structured_analysis.get('timing_metrics', {}).get('estimated_club_speed_mph', 'N/A')} mph
+- Total Swing Time: {structured_analysis.get('timing_metrics', {}).get('total_swing_time_ms', 'N/A')} ms
+
+=== BIOMECHANICAL METRICS ===
+Core Body Mechanics:
+- Hip Rotation: {structured_analysis.get('biomechanical_metrics', {}).get('hip_rotation_degrees', 'N/A')}°
+- Shoulder Rotation: {structured_analysis.get('biomechanical_metrics', {}).get('shoulder_rotation_degrees', 'N/A')}°
+- Posture Score: {structured_analysis.get('biomechanical_metrics', {}).get('posture_score_percent', 'N/A')}%
+- Weight Shift: {structured_analysis.get('biomechanical_metrics', {}).get('weight_shift_percent', 'N/A')}%
+
+Upper Body Mechanics:
+- Arm Extension: {structured_analysis.get('biomechanical_metrics', {}).get('arm_extension_percent', 'N/A')}%
+- Wrist Hinge: {structured_analysis.get('biomechanical_metrics', {}).get('wrist_hinge_degrees', 'N/A')}°
+- Swing Plane Consistency: {structured_analysis.get('biomechanical_metrics', {}).get('swing_plane_consistency_percent', 'N/A')}%
+- Head Movement (lateral): {structured_analysis.get('biomechanical_metrics', {}).get('head_movement_lateral_inches', 'N/A')} in
+- Head Movement (vertical): {structured_analysis.get('biomechanical_metrics', {}).get('head_movement_vertical_inches', 'N/A')} in
+
+Lower Body Mechanics:
+- Hip Thrust: {structured_analysis.get('biomechanical_metrics', {}).get('hip_thrust_percent', 'N/A')}%
+- Ground Force Efficiency: {structured_analysis.get('biomechanical_metrics', {}).get('ground_force_efficiency_percent', 'N/A')}%
+- Knee Flexion (address): {structured_analysis.get('biomechanical_metrics', {}).get('knee_flexion_address_degrees', 'N/A')}°
+- Knee Flexion (impact): {structured_analysis.get('biomechanical_metrics', {}).get('knee_flexion_impact_degrees', 'N/A')}°
+
+Movement Quality & Coordination:
+- Sequential Kinematic Sequence: {structured_analysis.get('biomechanical_metrics', {}).get('kinematic_sequence_percent', 'N/A')}%
+- Energy Transfer Efficiency: {structured_analysis.get('biomechanical_metrics', {}).get('energy_transfer_efficiency_percent', 'N/A')}%
+- Power Accumulation: {structured_analysis.get('biomechanical_metrics', {}).get('power_accumulation_percent', 'N/A')}%
+- Transition Smoothness: {structured_analysis.get('biomechanical_metrics', {}).get('transition_smoothness_percent', 'N/A')}%
+
+Performance Estimates:
+- Potential Distance: {structured_analysis.get('biomechanical_metrics', {}).get('potential_distance_yards', 'N/A')} yards
+- Speed Generation Method: {structured_analysis.get('biomechanical_metrics', {}).get('speed_generation_method', 'N/A')}
+
+=== TRAJECTORY ANALYSIS ===
+- Estimated Carry Distance: {structured_analysis.get('trajectory_analysis', {}).get('estimated_carry_distance', 'N/A')} yards
+- Estimated Ball Speed: {structured_analysis.get('trajectory_analysis', {}).get('estimated_ball_speed', 'N/A')} mph
+- Trajectory Type: {structured_analysis.get('trajectory_analysis', {}).get('trajectory_type', 'N/A')}
+"""
+            
+            st.success("🎯 **Personalized AI Coach Mode Active!** Your detailed swing analysis (including professional benchmarks and specific metrics) is now the primary context for all responses.")
+        elif 'prompt' in stored_data:
+            # Fallback to prompt if structured data not available
+            user_swing_context = f"\n\nUSER'S SWING ANALYSIS:\n{stored_data['prompt']}"
+            st.success("🎯 **Personalized AI Coach Mode Active!** Your swing analysis is now the primary context for all responses.")
+
+    # Create columns for layout
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("💬 Ask Your Golf Swing Question")
+        
+        # Example questions in sidebar-like area
+        with st.expander("📋 Example Questions", expanded=False):
+            example_questions = [
+                "What wrist motion happens during the downswing?",
+                "I'm having trouble with my backswing turn, can you help?",
+                "What should I focus on to increase my driving distance?",
+                "How do I fix my slice?",
+                "What is the correct hip rotation in the golf swing?",
+                "I keep topping the ball, what am I doing wrong?",
+                "How should my weight shift during the swing?",
+                "What are common causes of inconsistent ball striking?",
+                "How do I improve my short game technique?",
+                "What physical limitations can affect my swing?"
+            ]
+            
+            # Add personalized questions if we have swing analysis
+            if user_swing_context:
+                example_questions.extend([
+                    "Based on my swing analysis, what are my top 3 priorities?",
+                    "How can I improve my specific weak areas identified in the analysis?",
+                    "What drills target my measured swing deficiencies?",
+                    "How do my metrics compare to the professional benchmarks?",
+                    "What should I focus on first based on my analysis?",
+                    "How can I improve my measured weight transfer percentage?",
+                    "What exercises will help with my identified swing issues?"
+                ])
+            
+            selected_question = st.selectbox("Choose an example question:", [""] + example_questions)
+        
+        # Question input
+        question = st.text_area(
+            "Enter your golf swing question:",
+            value=selected_question if selected_question else "",
+            height=100,
+            placeholder="e.g., 'What wrist motion happens during the downswing?' or 'I'm having trouble with my slice, can you help?'"
+        )
+        
+        # Settings
+        num_sources = st.slider("Number of sources to retrieve", 3, 10, 5)
+        
+        col_submit, col_clear = st.columns([1, 1])
+        with col_submit:
+            submit_button = st.button("🎯 Get Answer", type="primary", use_container_width=True)
+        with col_clear:
+            if st.button("🗑️ Clear Chat History", use_container_width=True):
+                st.session_state.rag_chat_history = []
+                # Don't call st.rerun() here to avoid disappearing interface
+                st.success("Chat history cleared!")
+        
+        # Process question
+        if submit_button and question.strip():
+            with st.spinner("Analyzing your question and searching the knowledge base..."):
+                try:
+                    # Enhanced query method that includes user's swing context
+                    result = query_with_user_context(
+                        st.session_state.rag_system, 
+                        question, 
+                        user_swing_context,
+                        top_k=num_sources
+                    )
+                    
+                    # Add to chat history
+                    st.session_state.rag_chat_history.append({
+                        'question': question,
+                        'response': result['response'],
+                        'sources': result['sources'],
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'used_swing_context': bool(user_swing_context)
+                    })
+                    
+                    st.success("Answer generated successfully!")
+                    
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
+        
+        # Display chat history
+        if st.session_state.rag_chat_history:
+            st.subheader("💭 Chat History")
+            
+            for i, chat in enumerate(reversed(st.session_state.rag_chat_history)):
+                st.markdown(f"### Question {len(st.session_state.rag_chat_history) - i}")
+                st.markdown(f"*Asked on {chat['timestamp']}*")
+                
+                # Show if personalized with swing data
+                if chat.get('used_swing_context'):
+                    st.markdown("🎯 *Personalized with your swing analysis*")
+                
+                # Question
+                st.markdown(f'<div class="chat-message user-message"><strong>🤔 Your Question:</strong><br>{chat["question"]}</div>', 
+                           unsafe_allow_html=True)
+                
+                # Response
+                st.markdown(f'<div class="chat-message assistant-message"><strong>⛳ Expert Answer:</strong><br>{chat["response"]}</div>', 
+                           unsafe_allow_html=True)
+                
+                # Sources
+                display_rag_sources(chat['sources'])
+                
+                st.divider()
+    
+    with col2:
+        st.subheader("ℹ️ About This Assistant")
+        if user_swing_context:
+            st.success("""
+            🎯 **Personalized AI Coach Mode!**
+            
+            Your comprehensive swing analysis (with professional benchmarks, specific metrics, and identified areas for improvement) is now the primary system prompt. The AI will reference your exact measurements and provide coaching tailored to your swing data.
+            """)
+        
+        st.info("""
+        This Golf Swing RAG system provides expert advice by:
+        
+        • **Using YOUR swing analysis as the main context** (when available)
+        • **Searching 2,000+ professional golf instruction articles**
+        • **Synthesizing expert knowledge with your specific metrics**
+        • **Providing personalized coaching recommendations**
+        
+        **How it works:**
+        1. Your swing analysis becomes the AI's primary knowledge base
+        2. Relevant instruction articles are retrieved to supplement
+        3. Expert responses are synthesized and personalized
+        4. Advice is tailored to your measured swing characteristics
+        
+        **Note:** Enhanced AI responses require OpenAI API key configuration in Streamlit secrets.
+        """)
+        
+        st.subheader("🎯 Tips for Better Questions")
+        st.markdown("""
+        • **Reference your metrics**: "My hip rotation is X°, how can I improve?"
+        • **Ask about specific areas**: "How do I improve my weight transfer from 65% to 75%?"
+        • **Connect to analysis**: "Based on my swing plane consistency, what should I focus on?"
+        • **Request drills**: "What exercises will help with my identified swing issues?"
+        """)
+        
+        if user_swing_context:
+            st.subheader("🎯 Personalized Questions")
+            st.markdown("""
+            • "Based on my swing analysis, what are my top 3 priorities?"
+            • "How can I improve my specific weak areas identified in the analysis?"
+            • "What drills target my measured swing deficiencies?"
+            • "How do my metrics compare to the professional benchmarks?"
+            """)
+        else:
+            st.subheader("🎯 General Questions")
+            st.markdown("""
+            • **Be specific**: "How do I fix my slice?" vs "Help with golf swing"
+            • **Describe problems**: "I keep hitting fat shots with my irons"
+            • **Ask about technique**: "What should my wrist position be at impact?"
+            • **Mention limitations**: "I have limited hip mobility, how does this affect my swing?"
+            """)
+        
+        if hasattr(st.session_state.get('rag_system', {}), 'chunks'):
+            st.metric("Knowledge Base Size", f"{len(st.session_state.rag_system.chunks):,} text chunks")
+        st.metric("Total Conversations", len(st.session_state.rag_chat_history))
+
+def query_with_user_context(rag_system, question, user_swing_context, top_k=5):
+    """Enhanced query method that includes user's swing analysis context"""
+    # Search for relevant chunks
+    relevant_chunks = rag_system.search_similar_chunks(question, top_k)
+    
+    # Generate response with enhanced context
+    response = generate_enhanced_response(rag_system, question, relevant_chunks, user_swing_context)
+    print(f"Response: {response}")
+    
+    return {
+        'response': response,
+        'sources': relevant_chunks,
+        'query': question,
+        'timestamp': datetime.now().isoformat()
+    }
+
+def generate_enhanced_response(rag_system, query, context_chunks, user_swing_context=""):
+    """Generate response using OpenAI API with user's swing analysis as the main system prompt"""
+    if not rag_system.openai_client:
+        print("No OpenAI client found")
+        return generate_enhanced_fallback_response(query, context_chunks, user_swing_context)
+    
+    # Prepare context from knowledge base
+    knowledge_context = "\n\n".join([f"Reference Material from '{chunk['metadata']['title']}':\n{chunk['chunk']}" 
+                          for chunk in context_chunks])
+    
+    # Use the user's swing analysis as the primary system prompt if available
+    print(f"User swing context: {user_swing_context}")
+    if user_swing_context:
+        # Extract the actual analysis content (remove the header)
+        analysis_content = user_swing_context.replace("USER'S SWING ANALYSIS:\n", "").strip()
+        
+        system_prompt = f"""{analysis_content}
+
+You are a golf swing technique expert assistant analyzing this specific player's swing. Follow this EXACT response structure:
+
+1. PLAYER'S CURRENT STATE: First, identify if the question relates to any specific measurement or aspect in the player's swing analysis above. If found, state: "I notice that your [specific aspect] is [current measurement/state] during [swing phase]." If the questioned aspect is not specified in the analysis, skip this part.
+
+2. EXPERT RECOMMENDATION: Synthesize information from the reference materials below to answer the user's question. Keep this to 2-4 sentences maximum. Start with "Based on [source name]," and provide clear, actionable advice about the technique.
+
+3. SPECIFIC IMPROVEMENT: Compare the player's current state (from analysis) to the expert recommendation and provide specific improvement advice. Format: "You are currently at [current state] and the expert recommendation is [target state], so you should [specific action to improve]." If no specific measurement was found in step 1, provide general improvement advice based on the player's overall analysis.
+
+Reference Materials from Golf Instruction Database:
+{knowledge_context}"""
+
+        user_prompt = f"""Based on my specific swing analysis data shown in the system prompt and the golf instruction reference materials, please answer this question following the EXACT 3-part structure specified:
+
+{query}
+
+Remember to:
+1. Check my analysis for relevant measurements first
+2. Synthesize expert advice concisely (2-4 sentences max)
+3. Give specific improvement recommendations comparing my current state to expert advice"""
+
+    else:
+        # Fallback to general system prompt if no swing analysis available
+        system_prompt = f"""You are a golf swing technique expert assistant. You help golfers improve their swing by providing detailed, accurate advice based on professional golf instruction content.
+
+Instructions:
+- Answer questions about golf swing technique, mechanics, common problems, and solutions
+- Provide specific, actionable advice when possible
+- Reference relevant technical concepts when appropriate
+- Be encouraging and supportive
+- Synthesize information from multiple sources rather than just quoting them
+- Give clear, comprehensive explanations that golfers can understand and apply
+
+Reference Materials from Golf Instruction Database:
+{knowledge_context}"""
+
+        user_prompt = f"""Based on the golf instruction reference materials provided, please answer this question about golf swing technique:
+
+{query}
+
+Please provide a helpful, detailed response that synthesizes the relevant information into clear, actionable guidance."""
+
+    print(f"System prompt: {system_prompt}")
+    print(f"User prompt: {user_prompt}")
+    try:
+        response = rag_system.openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=800,
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        return generate_enhanced_fallback_response(query, context_chunks, user_swing_context)
+
+def generate_enhanced_fallback_response(query, context_chunks, user_swing_context=""):
+    """Generate an enhanced fallback response when OpenAI API is not available"""
+    if not context_chunks:
+        return "I couldn't find specific information about that topic in the golf swing database. Could you try rephrasing your question or being more specific?"
+    
+    # Extract relevant information from chunks
+    best_chunk = context_chunks[0]
+    chunk_content = best_chunk['chunk']
+    source_title = best_chunk['metadata']['title']
+    
+    response_parts = []
+    
+    # Part 1: Check if user has swing analysis and if the question relates to it
+    if user_swing_context:
+        analysis_content = user_swing_context.replace("USER'S SWING ANALYSIS:\n", "").strip()
+        
+        # Simple keyword matching to see if the question relates to measured aspects
+        question_lower = query.lower()
+        analysis_lower = analysis_content.lower()
+        
+        found_relevant_measurement = False
+        
+        # Check for common golf swing aspects with more specific extraction
+        if "wrist" in question_lower:
+            # Look for wrist-related measurements
+            lines = analysis_content.split('\n')
+            for line in lines:
+                if 'wrist hinge' in line.lower() and ('°' in line or '%' in line):
+                    # Extract just the wrist hinge measurement
+                    import re
+                    wrist_match = re.search(r'wrist hinge[:\s]*(\d+\.?\d*°)', line.lower())
+                    if wrist_match:
+                        response_parts.append(f"I notice that your wrist hinge is {wrist_match.group(1)} during your swing.")
+                        found_relevant_measurement = True
+                        break
+                    else:
+                        # Fallback: if we find wrist hinge mentioned
+                        response_parts.append("I notice that your swing analysis includes wrist hinge measurements during your swing phases.")
+                        found_relevant_measurement = True
+                        break
+            if not found_relevant_measurement and "wrist" in analysis_lower:
+                response_parts.append("I notice that your swing analysis includes wrist-related measurements.")
+                found_relevant_measurement = True
+                
+        elif "hip" in question_lower:
+            # Look for hip rotation measurements
+            lines = analysis_content.split('\n')
+            for line in lines:
+                if 'hip rotation' in line.lower() and '°' in line:
+                    # Extract the user's hip rotation measurement
+                    import re
+                    # First look for user's measurement pattern like "- Hip rotation: 45°"
+                    user_hip_match = re.search(r'-\s*hip rotation[:\s]*(\d+\.?\d*°)', line.lower())
+                    if user_hip_match:
+                        response_parts.append(f"I notice that your hip rotation is {user_hip_match.group(1)} during your swing.")
+                        found_relevant_measurement = True
+                        break
+                    # Fallback: look for any hip rotation measurement that comes before "professional"
+                    else:
+                        hip_match = re.search(r'hip rotation[:\s]*(\d+\.?\d*°)', line.lower())
+                        if hip_match:
+                            measurement_pos = line.lower().find(hip_match.group(1))
+                            professional_pos = line.lower().find('professional')
+                            if professional_pos == -1 or measurement_pos < professional_pos:
+                                response_parts.append(f"I notice that your hip rotation is {hip_match.group(1)} during your swing.")
+                                found_relevant_measurement = True
+                                break
+            if not found_relevant_measurement and "hip" in analysis_lower:
+                response_parts.append("I notice that your swing analysis includes hip rotation measurements.")
+                found_relevant_measurement = True
+                
+        elif "weight" in question_lower or "transfer" in question_lower:
+            # Look for weight transfer measurements  
+            lines = analysis_content.split('\n')
+            for line in lines:
+                if ('weight transfer' in line.lower() or 'weight shift' in line.lower()) and '%' in line:
+                    # Extract the weight transfer percentage
+                    import re
+                    weight_match = re.search(r'weight (?:transfer|shift)[:\s]*(\d+\.?\d*%)', line.lower())
+                    if weight_match:
+                        response_parts.append(f"I notice that your weight transfer is {weight_match.group(1)} during the downswing.")
+                        found_relevant_measurement = True
+                        break
+            if not found_relevant_measurement and ("weight" in analysis_lower or "transfer" in analysis_lower):
+                response_parts.append("I notice that your swing analysis includes weight transfer measurements.")
+                found_relevant_measurement = True
+                
+        elif "shoulder" in question_lower:
+            # Look for shoulder measurements
+            lines = analysis_content.split('\n')
+            for line in lines:
+                if 'shoulder rotation' in line.lower() and '°' in line:
+                    import re
+                    shoulder_match = re.search(r'shoulder rotation[:\s]*(\d+\.?\d*°)', line.lower())
+                    if shoulder_match:
+                        response_parts.append(f"I notice that your shoulder rotation is {shoulder_match.group(1)} during your swing.")
+                        found_relevant_measurement = True
+                        break
+            if not found_relevant_measurement and "shoulder" in analysis_lower:
+                response_parts.append("I notice that your swing analysis includes shoulder rotation measurements.")
+                found_relevant_measurement = True
+    
+    # Part 2: Expert recommendation (synthesized from source)
+    # Take first meaningful sentences from the chunk
+    sentences = chunk_content.split('. ')
+    meaningful_sentences = [s.strip() for s in sentences if len(s.strip()) > 20][:3]
+    expert_advice = '. '.join(meaningful_sentences[:2]) + '.'
+    
+    response_parts.append(f"Based on {source_title}, {expert_advice}")
+    
+    # Part 3: Specific improvement recommendation
+    if user_swing_context and "USER'S SWING ANALYSIS:" in user_swing_context:
+        if found_relevant_measurement:
+            # Try to extract specific improvement areas from the analysis
+            analysis_lines = analysis_content.split('\n')
+            improvement_areas = []
+            professional_targets = []
+            
+            for line in analysis_lines:
+                if 'NEEDS IMPROVEMENT' in line or 'need' in line.lower() and 'improve' in line.lower():
+                    improvement_areas.append(line.strip())
+                elif 'professional' in line.lower() and ('°' in line or '%' in line):
+                    professional_targets.append(line.strip())
+            
+            if improvement_areas:
+                # Find the most relevant improvement for the question
+                relevant_improvement = None
+                for improvement in improvement_areas:
+                    if any(keyword in improvement.lower() for keyword in question_lower.split()):
+                        relevant_improvement = improvement
+                        break
+                
+                if relevant_improvement:
+                    response_parts.append(f"Your analysis shows this area needs improvement: {relevant_improvement}. Focus on implementing the expert recommendations above to address this specific limitation.")
+                else:
+                    response_parts.append("Based on your analysis, focus on implementing the expert advice above to improve your measured swing characteristics and move closer to professional standards.")
+            else:
+                response_parts.append("Based on your current measurements compared to professional standards, focus on implementing the expert advice above to address your specific swing characteristics.")
+        else:
+            response_parts.append("While your swing analysis doesn't specifically measure this aspect, apply the expert guidance above to improve your overall swing mechanics based on your identified improvement areas.")
+    else:
+        response_parts.append("Focus on implementing this expert advice to improve your swing technique.")
+    
+    # Combine all parts
+    final_response = "\n\n".join(response_parts)
+    
+    # Add source reference
+    final_response += f"\n\n📚 **Source**: {source_title}"
+    
+    return final_response
 
 # Define functions
 def validate_youtube_url(url):
@@ -106,7 +659,9 @@ def main():
             'trajectory_data': None,
             'sample_rate': None
         }
-    
+    if 'show_chatbot' not in st.session_state:
+        st.session_state.show_chatbot = False
+
     # Add session cleanup - clean up old files when starting a new session
     if 'session_initialized' not in st.session_state:
         cleanup_result = cleanup_downloads_directory(keep_annotated=True)
@@ -242,7 +797,7 @@ def main():
 
             # Present the options after analysis
             st.subheader("What would you like to do next?")
-            options_col1, options_col2, options_col3 = st.columns(3)
+            options_col1, options_col2, options_col3, options_col4 = st.columns(4)
 
             with options_col1:
                 st.info(
@@ -257,6 +812,11 @@ def main():
             with options_col3:
                 st.info(
                     "**Option 3: Key Frame Analysis**\n\nExtract and review your setup, top of backswing, and impact frames with helpful comments for each phase."
+                )
+            
+            with options_col4:
+                st.info(
+                    "**Option 4: Golf Swing Chatbot**\n\nAsk specific questions about golf swing technique and get expert advice from our knowledge base."
                 )
 
         except Exception as e:
@@ -275,7 +835,7 @@ def main():
                         language="text")
 
         # Create columns for the action buttons
-        button_col1, button_col2, button_col3 = st.columns(3)
+        button_col1, button_col2, button_col3, button_col4 = st.columns(4)
 
         with button_col1:
             annotated_video_clicked = st.button("Generate Annotated Video",
@@ -291,9 +851,16 @@ def main():
             keyframe_analysis_clicked = st.button("Key Frame Analysis",
                                                  key="keyframe_analysis",
                                                  use_container_width=True)
+        
+        with button_col4:
+            chatbot_clicked = st.button("Golf Swing Chatbot",
+                                       key="rag_chatbot",
+                                       use_container_width=True)
 
         # Handle annotated video creation
         if annotated_video_clicked:
+            # Reset chatbot state when other buttons are clicked
+            st.session_state.show_chatbot = False
             try:
                 with st.spinner("Creating annotated video..."):
                     # Create downloads directory if it doesn't exist
@@ -340,6 +907,8 @@ def main():
 
         # Handle improvement recommendations generation
         if improvements_clicked:
+            # Reset chatbot state when other buttons are clicked
+            st.session_state.show_chatbot = False
             with st.spinner(
                     "Analyzing your swing and generating recommendations..."):
                 # Get data from session state
@@ -382,8 +951,11 @@ def main():
                 else:
                     # Show error message if analysis failed
                     st.error(analysis)
+        
         # Handle key frame analysis (new tab/option)
         if keyframe_analysis_clicked:
+            # Reset chatbot state when other buttons are clicked
+            st.session_state.show_chatbot = False
             try:
                 with st.spinner("Extracting key frames from your swing..."):
                     user_video_path = st.session_state.analysis_data['video_path']
@@ -478,6 +1050,23 @@ def main():
             except Exception as e:
                 st.error(f"Error during key frame analysis: {str(e)}")
                 st.info("Please ensure your video is in a supported format and try again.")
+        
+        # Handle RAG chatbot
+        if chatbot_clicked:
+            st.session_state.show_chatbot = True
+        
+        # Always show chatbot interface if it's active
+        if st.session_state.show_chatbot:
+            # Create header with close button
+            header_col1, header_col2 = st.columns([3, 1])
+            with header_col1:
+                st.subheader("Golf Swing Technique Chatbot")
+            with header_col2:
+                if st.button("✕ Close Chatbot", use_container_width=True):
+                    st.session_state.show_chatbot = False
+                    st.rerun()
+            
+            render_rag_interface()
 
 
 if __name__ == "__main__":
