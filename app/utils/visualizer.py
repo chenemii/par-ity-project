@@ -216,9 +216,9 @@ def create_annotated_video(video_path,
                             print(f"Error transforming detection bbox: {str(e)}")
                             # Keep the bbox as is if there's an error
 
-            # Draw detections
+            # Draw detections - only show person detections, skip other objects
             frame_detections = [
-                d for d in detections if d.frame_idx == i * sample_rate
+                d for d in detections if d.frame_idx == i * sample_rate and d.class_name == "person"
             ]
             for detection in frame_detections:
                 try:
@@ -229,10 +229,8 @@ def create_annotated_video(video_path,
                         
                     x1, y1, x2, y2 = map(int, detection.bbox)
 
-                    # Draw bounding box
-                    color = (0, 255,
-                             0) if detection.class_name == "person" else (0, 0,
-                                                                          255)
+                    # Draw bounding box (only for person detections - green)
+                    color = (0, 255, 0)  # Green for person
                     cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
 
                     # Draw label
