@@ -99,8 +99,7 @@ def display_rag_sources(sources):
 
 def render_rag_interface():
     """Render the RAG chatbot interface"""
-    st.markdown('<div class="rag-header">⛳ Golf Swing Technique Assistant</div>', unsafe_allow_html=True)
-    st.markdown("Get expert advice on golf swing technique based on 2,000+ professional instruction articles")
+    # Removed header and description
     
     # Initialize RAG system
     if 'rag_system' not in st.session_state and RAG_AVAILABLE:
@@ -177,57 +176,26 @@ Performance Estimates:
 - Trajectory Type: {structured_analysis.get('trajectory_analysis', {}).get('trajectory_type', 'N/A')}
 """
             
-            st.success("🎯 **Personalized AI Coach Mode Active!** Your detailed swing analysis (including professional benchmarks and specific metrics) is now the primary context for all responses.")
+            # Removed success message
         elif 'prompt' in stored_data:
             # Fallback to prompt if structured data not available
             user_swing_context = f"\n\nUSER'S SWING ANALYSIS:\n{stored_data['prompt']}"
-            st.success("🎯 **Personalized AI Coach Mode Active!** Your swing analysis is now the primary context for all responses.")
+            # Removed success message
 
     # Create columns for layout
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.subheader("💬 Ask Your Golf Swing Question")
+        # Removed subheader
         
-        # Example questions in sidebar-like area
-        with st.expander("📋 Example Questions", expanded=False):
-            example_questions = [
-                "What wrist motion happens during the downswing?",
-                "I'm having trouble with my backswing turn, can you help?",
-                "What should I focus on to increase my driving distance?",
-                "How do I fix my slice?",
-                "What is the correct hip rotation in the golf swing?",
-                "I keep topping the ball, what am I doing wrong?",
-                "How should my weight shift during the swing?",
-                "What are common causes of inconsistent ball striking?",
-                "How do I improve my short game technique?",
-                "What physical limitations can affect my swing?"
-            ]
-            
-            # Add personalized questions if we have swing analysis
-            if user_swing_context:
-                example_questions.extend([
-                    "Based on my swing analysis, what are my top 3 priorities?",
-                    "How can I improve my specific weak areas identified in the analysis?",
-                    "What drills target my measured swing deficiencies?",
-                    "How do my metrics compare to the professional benchmarks?",
-                    "What should I focus on first based on my analysis?",
-                    "How can I improve my measured weight transfer percentage?",
-                    "What exercises will help with my identified swing issues?"
-                ])
-            
-            selected_question = st.selectbox("Choose an example question:", [""] + example_questions)
-        
-        # Question input
+        # Question input (removed label)
         question = st.text_area(
-            "Enter your golf swing question:",
-            value=selected_question if selected_question else "",
+            "",  # Removed label
             height=100,
-            placeholder="e.g., 'What wrist motion happens during the downswing?' or 'I'm having trouble with my slice, can you help?'"
+            placeholder="Ask about your golf swing technique..."
         )
         
-        # Settings
-        num_sources = st.slider("Number of sources to retrieve", 3, 10, 5)
+        # Removed settings section - using smart defaults instead
         
         col_submit, col_clear = st.columns([1, 1])
         with col_submit:
@@ -243,6 +211,8 @@ Performance Estimates:
             with st.spinner("Analyzing your question and searching the knowledge base..."):
                 try:
                     # Enhanced query method that includes user's swing context
+                    # Use smart default for number of sources (3-5 depending on context)
+                    num_sources = 5 if user_swing_context else 3  # More sources when we have swing analysis
                     result = query_with_user_context(
                         st.session_state.rag_system, 
                         question, 
@@ -264,17 +234,10 @@ Performance Estimates:
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
         
-        # Display chat history
+        # Display chat history (simplified)
         if st.session_state.rag_chat_history:
-            st.subheader("💭 Chat History")
-            
             for i, chat in enumerate(reversed(st.session_state.rag_chat_history)):
-                st.markdown(f"### Question {len(st.session_state.rag_chat_history) - i}")
-                st.markdown(f"*Asked on {chat['timestamp']}*")
-                
-                # Show if personalized with swing data
-                if chat.get('used_swing_context'):
-                    st.markdown("🎯 *Personalized with your swing analysis*")
+                # Removed question numbers, timestamps, and personalization indicators
                 
                 # Question
                 st.markdown(f'<div class="chat-message user-message"><strong>🤔 Your Question:</strong><br>{chat["question"]}</div>', 
@@ -284,65 +247,13 @@ Performance Estimates:
                 st.markdown(f'<div class="chat-message assistant-message"><strong>⛳ Expert Answer:</strong><br>{chat["response"]}</div>', 
                            unsafe_allow_html=True)
                 
-                # Sources
-                display_rag_sources(chat['sources'])
+                # Removed sources display
                 
                 st.divider()
     
     with col2:
-        st.subheader("ℹ️ About This Assistant")
-        if user_swing_context:
-            st.success("""
-            🎯 **Personalized AI Coach Mode!**
-            
-            Your comprehensive swing analysis (with professional benchmarks, specific metrics, and identified areas for improvement) is now the primary system prompt. The AI will reference your exact measurements and provide coaching tailored to your swing data.
-            """)
-        
-        st.info("""
-        This Golf Swing RAG system provides expert advice by:
-        
-        • **Using YOUR swing analysis as the main context** (when available)
-        • **Searching 2,000+ professional golf instruction articles**
-        • **Synthesizing expert knowledge with your specific metrics**
-        • **Providing personalized coaching recommendations**
-        
-        **How it works:**
-        1. Your swing analysis becomes the AI's primary knowledge base
-        2. Relevant instruction articles are retrieved to supplement
-        3. Expert responses are synthesized and personalized
-        4. Advice is tailored to your measured swing characteristics
-        
-        **Note:** Enhanced AI responses require OpenAI API key configuration in Streamlit secrets.
-        """)
-        
-        st.subheader("🎯 Tips for Better Questions")
-        st.markdown("""
-        • **Reference your metrics**: "My hip rotation is X°, how can I improve?"
-        • **Ask about specific areas**: "How do I improve my weight transfer from 65% to 75%?"
-        • **Connect to analysis**: "Based on my swing plane consistency, what should I focus on?"
-        • **Request drills**: "What exercises will help with my identified swing issues?"
-        """)
-        
-        if user_swing_context:
-            st.subheader("🎯 Personalized Questions")
-            st.markdown("""
-            • "Based on my swing analysis, what are my top 3 priorities?"
-            • "How can I improve my specific weak areas identified in the analysis?"
-            • "What drills target my measured swing deficiencies?"
-            • "How do my metrics compare to the professional benchmarks?"
-            """)
-        else:
-            st.subheader("🎯 General Questions")
-            st.markdown("""
-            • **Be specific**: "How do I fix my slice?" vs "Help with golf swing"
-            • **Describe problems**: "I keep hitting fat shots with my irons"
-            • **Ask about technique**: "What should my wrist position be at impact?"
-            • **Mention limitations**: "I have limited hip mobility, how does this affect my swing?"
-            """)
-        
-        if hasattr(st.session_state.get('rag_system', {}), 'chunks'):
-            st.metric("Knowledge Base Size", f"{len(st.session_state.rag_system.chunks):,} text chunks")
-        st.metric("Total Conversations", len(st.session_state.rag_chat_history))
+        # Removed all the About section, Tips, Personalized Questions, and metrics
+        pass
 
 def query_with_user_context(rag_system, question, user_swing_context, top_k=5):
     """Enhanced query method that includes user's swing analysis context"""
@@ -378,25 +289,35 @@ def generate_enhanced_response(rag_system, query, context_chunks, user_swing_con
         
         system_prompt = f"""{analysis_content}
 
-You are a golf swing technique expert assistant analyzing this specific player's swing. Follow this EXACT response structure:
+You are a golf swing technique expert assistant analyzing this specific player's swing. 
 
-1. PLAYER'S CURRENT STATE: First, identify if the question relates to any specific measurement or aspect in the player's swing analysis above. If found, state: "I notice that your [specific aspect] is [current measurement/state] during [swing phase]." If the questioned aspect is not specified in the analysis, skip this part.
+IMPORTANT: Only reference the player's swing analysis data above if the question is directly related to swing motion biomechanics (like hip rotation, shoulder turn, weight transfer, timing, etc.). 
 
-2. EXPERT RECOMMENDATION: Synthesize information from the reference materials below to answer the user's question. Keep this to 2-4 sentences maximum. Start with "Based on [source name]," and provide clear, actionable advice about the technique.
+Do NOT reference swing analysis for questions about:
+- Grip (how to hold the club)
+- Setup/stance (static positioning before the swing)
+- Equipment (clubs, balls, etc.)
+- Course management
+- Mental game
+- Basic fundamentals that aren't measured during swing motion
 
-3. SPECIFIC IMPROVEMENT: Compare the player's current state (from analysis) to the expert recommendation and provide specific improvement advice. Format: "You are currently at [current state] and the expert recommendation is [target state], so you should [specific action to improve]." If no specific measurement was found in step 1, provide general improvement advice based on the player's overall analysis.
+Follow this response structure:
+
+1. Synthesize information from the reference materials below to answer the user's question. Keep this to 2-4 sentences maximum. Start with "Based on [source name]," and provide clear, actionable advice about the technique.
+
+2. If the question relates to swing motion biomechanics AND you found relevant measurements in the analysis above, provide specific improvement advice comparing current state to recommendations. Otherwise, provide general advice without forcing connections to unrelated swing metrics.
 
 Reference Materials from Golf Instruction Database:
 {knowledge_context}"""
 
-        user_prompt = f"""Based on my specific swing analysis data shown in the system prompt and the golf instruction reference materials, please answer this question following the EXACT 3-part structure specified:
+        user_prompt = f"""Based on the golf instruction reference materials provided, please answer this question about golf swing technique:
 
 {query}
 
 Remember to:
-1. Check my analysis for relevant measurements first
+1. Only reference my swing analysis if the question is about swing motion biomechanics
 2. Synthesize expert advice concisely (2-4 sentences max)
-3. Give specific improvement recommendations comparing my current state to expert advice"""
+3. Don't force connections between unrelated topics (e.g., don't mention wrist hinge when asking about grip)"""
 
     else:
         # Fallback to general system prompt if no swing analysis available
@@ -448,83 +369,66 @@ def generate_enhanced_fallback_response(query, context_chunks, user_swing_contex
     
     response_parts = []
     
-    # Part 1: Check if user has swing analysis and if the question relates to it
-    if user_swing_context:
+    # Check if question is about swing motion biomechanics vs setup/grip/equipment
+    question_lower = query.lower()
+    
+    # Define topics that are NOT about swing motion biomechanics
+    non_biomechanics_topics = [
+        'grip', 'hold', 'grip pressure', 'grip size', 'grip style',
+        'setup', 'stance', 'address', 'alignment', 'posture at address',
+        'equipment', 'club', 'ball', 'tee', 'glove',
+        'course management', 'strategy', 'mental', 'psychology',
+        'warm up', 'practice', 'routine', 'pre-shot'
+    ]
+    
+    # Check if question is about non-biomechanics topics
+    is_non_biomechanics = any(topic in question_lower for topic in non_biomechanics_topics)
+    
+    # Part 1: Only check for relevant measurements if question is about swing motion biomechanics
+    found_relevant_measurement = False
+    if user_swing_context and not is_non_biomechanics:
         analysis_content = user_swing_context.replace("USER'S SWING ANALYSIS:\n", "").strip()
-        
-        # Simple keyword matching to see if the question relates to measured aspects
-        question_lower = query.lower()
         analysis_lower = analysis_content.lower()
         
-        found_relevant_measurement = False
-        
-        # Check for common golf swing aspects with more specific extraction
-        if "wrist" in question_lower:
-            # Look for wrist-related measurements
+        # Only do specific keyword matching for biomechanics-related questions
+        if "wrist" in question_lower and "hinge" in question_lower:
+            # Look for wrist hinge measurements (only if asking about wrist hinge specifically)
             lines = analysis_content.split('\n')
             for line in lines:
                 if 'wrist hinge' in line.lower() and ('°' in line or '%' in line):
-                    # Extract just the wrist hinge measurement
                     import re
                     wrist_match = re.search(r'wrist hinge[:\s]*(\d+\.?\d*°)', line.lower())
                     if wrist_match:
                         response_parts.append(f"I notice that your wrist hinge is {wrist_match.group(1)} during your swing.")
                         found_relevant_measurement = True
                         break
-                    else:
-                        # Fallback: if we find wrist hinge mentioned
-                        response_parts.append("I notice that your swing analysis includes wrist hinge measurements during your swing phases.")
-                        found_relevant_measurement = True
-                        break
-            if not found_relevant_measurement and "wrist" in analysis_lower:
-                response_parts.append("I notice that your swing analysis includes wrist-related measurements.")
-                found_relevant_measurement = True
-                
-        elif "hip" in question_lower:
-            # Look for hip rotation measurements
+                        
+        elif "hip" in question_lower and ("rotation" in question_lower or "turn" in question_lower):
+            # Look for hip rotation measurements (only if asking about hip rotation/turn)
             lines = analysis_content.split('\n')
             for line in lines:
                 if 'hip rotation' in line.lower() and '°' in line:
-                    # Extract the user's hip rotation measurement
                     import re
-                    # First look for user's measurement pattern like "- Hip rotation: 45°"
                     user_hip_match = re.search(r'-\s*hip rotation[:\s]*(\d+\.?\d*°)', line.lower())
                     if user_hip_match:
                         response_parts.append(f"I notice that your hip rotation is {user_hip_match.group(1)} during your swing.")
                         found_relevant_measurement = True
                         break
-                    # Fallback: look for any hip rotation measurement that comes before "professional"
-                    else:
-                        hip_match = re.search(r'hip rotation[:\s]*(\d+\.?\d*°)', line.lower())
-                        if hip_match:
-                            measurement_pos = line.lower().find(hip_match.group(1))
-                            professional_pos = line.lower().find('professional')
-                            if professional_pos == -1 or measurement_pos < professional_pos:
-                                response_parts.append(f"I notice that your hip rotation is {hip_match.group(1)} during your swing.")
-                                found_relevant_measurement = True
-                                break
-            if not found_relevant_measurement and "hip" in analysis_lower:
-                response_parts.append("I notice that your swing analysis includes hip rotation measurements.")
-                found_relevant_measurement = True
-                
-        elif "weight" in question_lower or "transfer" in question_lower:
-            # Look for weight transfer measurements  
+                        
+        elif "weight" in question_lower and ("transfer" in question_lower or "shift" in question_lower):
+            # Look for weight transfer measurements (only if asking about weight transfer/shift)
             lines = analysis_content.split('\n')
             for line in lines:
                 if ('weight transfer' in line.lower() or 'weight shift' in line.lower()) and '%' in line:
-                    # Extract the weight transfer percentage
                     import re
                     weight_match = re.search(r'weight (?:transfer|shift)[:\s]*(\d+\.?\d*%)', line.lower())
                     if weight_match:
                         response_parts.append(f"I notice that your weight transfer is {weight_match.group(1)} during the downswing.")
                         found_relevant_measurement = True
                         break
-            if not found_relevant_measurement and ("weight" in analysis_lower or "transfer" in analysis_lower):
-                response_parts.append("I notice that your swing analysis includes weight transfer measurements.")
-                found_relevant_measurement = True
-                
-        elif "shoulder" in question_lower:
-            # Look for shoulder measurements
+                        
+        elif "shoulder" in question_lower and ("rotation" in question_lower or "turn" in question_lower):
+            # Look for shoulder measurements (only if asking about shoulder rotation/turn)
             lines = analysis_content.split('\n')
             for line in lines:
                 if 'shoulder rotation' in line.lower() and '°' in line:
@@ -534,50 +438,22 @@ def generate_enhanced_fallback_response(query, context_chunks, user_swing_contex
                         response_parts.append(f"I notice that your shoulder rotation is {shoulder_match.group(1)} during your swing.")
                         found_relevant_measurement = True
                         break
-            if not found_relevant_measurement and "shoulder" in analysis_lower:
-                response_parts.append("I notice that your swing analysis includes shoulder rotation measurements.")
-                found_relevant_measurement = True
     
     # Part 2: Expert recommendation (synthesized from source)
-    # Take first meaningful sentences from the chunk
     sentences = chunk_content.split('. ')
     meaningful_sentences = [s.strip() for s in sentences if len(s.strip()) > 20][:3]
     expert_advice = '. '.join(meaningful_sentences[:2]) + '.'
     
     response_parts.append(f"Based on {source_title}, {expert_advice}")
     
-    # Part 3: Specific improvement recommendation
-    if user_swing_context and "USER'S SWING ANALYSIS:" in user_swing_context:
-        if found_relevant_measurement:
-            # Try to extract specific improvement areas from the analysis
-            analysis_lines = analysis_content.split('\n')
-            improvement_areas = []
-            professional_targets = []
-            
-            for line in analysis_lines:
-                if 'NEEDS IMPROVEMENT' in line or 'need' in line.lower() and 'improve' in line.lower():
-                    improvement_areas.append(line.strip())
-                elif 'professional' in line.lower() and ('°' in line or '%' in line):
-                    professional_targets.append(line.strip())
-            
-            if improvement_areas:
-                # Find the most relevant improvement for the question
-                relevant_improvement = None
-                for improvement in improvement_areas:
-                    if any(keyword in improvement.lower() for keyword in question_lower.split()):
-                        relevant_improvement = improvement
-                        break
-                
-                if relevant_improvement:
-                    response_parts.append(f"Your analysis shows this area needs improvement: {relevant_improvement}. Focus on implementing the expert recommendations above to address this specific limitation.")
-                else:
-                    response_parts.append("Based on your analysis, focus on implementing the expert advice above to improve your measured swing characteristics and move closer to professional standards.")
-            else:
-                response_parts.append("Based on your current measurements compared to professional standards, focus on implementing the expert advice above to address your specific swing characteristics.")
-        else:
-            response_parts.append("While your swing analysis doesn't specifically measure this aspect, apply the expert guidance above to improve your overall swing mechanics based on your identified improvement areas.")
+    # Part 3: Improvement recommendation (only connect to swing analysis if relevant)
+    if user_swing_context and found_relevant_measurement and not is_non_biomechanics:
+        # Only provide swing-analysis-specific advice if we found relevant measurements
+        analysis_content = user_swing_context.replace("USER'S SWING ANALYSIS:\n", "").strip()
+        response_parts.append("Based on your current measurements compared to professional standards, focus on implementing the expert advice above to address your specific swing characteristics.")
     else:
-        response_parts.append("Focus on implementing this expert advice to improve your swing technique.")
+        # For non-biomechanics questions or when no relevant measurements found
+        response_parts.append("Focus on implementing this expert advice to improve your technique.")
     
     # Combine all parts
     final_response = "\n\n".join(response_parts)
